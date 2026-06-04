@@ -1,0 +1,26 @@
+# ROS 2 / colcon build products
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors and OS files
+.DS_Store
+.vscode/
+.idea/
+
+# Local demo artifacts
+*.bag
+*.db3
+*.mcap
+*.log
+screenshots/
+videos/
+

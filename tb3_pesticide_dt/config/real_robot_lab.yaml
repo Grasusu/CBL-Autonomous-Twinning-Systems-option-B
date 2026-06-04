@@ -1,0 +1,72 @@
+plant_nav2_mission_node:
+  ros__parameters:
+    start_automatically: true
+    source_entity: physical_turtlebot3_nav2
+    nav_action_name: navigate_to_pose
+    state_topic: /dt/physical/mission_state
+    inspection_request_topic: /dt/physical/inspection_request
+    inspection_result_topic: /dt/digital/inspection_result
+    digital_state_topic: /dt/digital/mission_state
+    inspection_log_topic: /dt/physical/inspection_log
+
+    frame_id: map
+    # For the physical robot, set the initial pose manually in RViz before
+    # launching the mission. Publishing a fixed (0,0,0) initial pose here can
+    # create a temporary map offset and make the first waypoint look reached.
+    publish_initial_pose: false
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_yaw: 0.0
+    return_to_start: false
+    # Fallback home pose if TF/AMCL capture fails. Normally the node captures
+    # the real start pose after RViz localization settles.
+    home_x: -0.80
+    home_y: -0.07
+    home_yaw: 0.0
+    use_captured_home_pose: true
+
+    # First eight stops are inspected. plant_home is the final return waypoint
+    # and is not inspected.
+    zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_g", "plant_h", "plant_home"]
+    zone_names: ["Start bed", "Upper east bed", "East middle bed", "Lower east bed", "South middle bed", "South center bed", "West lower bed", "West return bed", "Home / Start"]
+    zone_x: [0.45, 0.75, 0.85, 0.85, 0.45, -0.25, -0.65, -0.60, -0.80]
+    zone_y: [-0.35, -0.45, -0.95, -1.45, -2.05, -2.10, -2.05, -1.35, -0.07]
+    zone_yaw: [-0.20, -0.30, -1.20, -1.57, -2.20, 2.90, 2.70, 1.57, 0.0]
+    zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.22, 0.81, 0.44, 0.63, 0.0]
+    zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "RETURN_HOME"]
+
+    control_period_s: 0.20
+    wait_for_nav2_timeout_s: 60.0
+    goal_timeout_s: 300.0
+    inspection_duration_s: 3.0
+    inspection_result_timeout_s: 8.0
+    treatment_alert_hold_s: 2.0
+    summary_republish_period_s: 5.0
+    initial_pose_settle_s: 12.0
+
+inspection_twin_node:
+  ros__parameters:
+    physical_state_topic: /dt/physical/mission_state
+    state_topic: /dt/digital/mission_state
+    inspection_request_topic: /dt/physical/inspection_request
+    inspection_result_topic: /dt/digital/inspection_result
+    safety_state_topic: /dt/safety_state
+    marker_topic: /dt/digital/plant_markers
+
+    zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_g", "plant_h", "plant_home"]
+    zone_names: ["Start bed", "Upper east bed", "East middle bed", "Lower east bed", "South middle bed", "South center bed", "West lower bed", "West return bed", "Home / Start"]
+    zone_x: [0.45, 0.75, 0.85, 0.85, 0.45, -0.25, -0.65, -0.60, -0.80]
+    zone_y: [-0.35, -0.45, -0.95, -1.45, -2.05, -2.10, -2.05, -1.35, -0.07]
+    zone_yaw: [-0.20, -0.30, -1.20, -1.57, -2.20, 2.90, 2.70, 1.57, 0.0]
+    zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.22, 0.81, 0.44, 0.63, 0.0]
+    zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "RETURN_HOME"]
+
+    plant_stress_threshold: 0.50
+    processing_delay_s: 1.0
+    camera_health: healthy
+    frame_id: map
+
+arena_map_node:
+  ros__parameters:
+    marker_topic: /dt/digital/arena_map
+    frame_id: map

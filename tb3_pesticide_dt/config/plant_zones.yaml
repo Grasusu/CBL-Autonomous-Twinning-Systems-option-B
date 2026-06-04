@@ -1,0 +1,111 @@
+plant_mission_node:
+  ros__parameters:
+    start_automatically: true
+    source_entity: physical_robot
+
+    odom_topic: /odom
+    cmd_topic: /cmd_vel_raw
+    state_topic: /dt/physical/mission_state
+    inspection_request_topic: /dt/physical/inspection_request
+    inspection_result_topic: /dt/digital/inspection_result
+    digital_state_topic: /dt/digital/mission_state
+    safety_state_topic: /dt/safety_state
+    inspection_log_topic: /dt/physical/inspection_log
+
+    # Coordinates are relative to the odom frame at robot startup.
+    # Tune these in the wooden arena so each waypoint stops in front of a plant marker.
+    zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_g", "plant_h"]
+    zone_names: ["Start bed", "Upper east bed", "East middle bed", "Lower east bed", "South middle bed", "South center bed", "West lower bed", "West return bed"]
+    zone_x: [0.25, 0.75, 0.85, 0.85, 0.45, -0.25, -0.65, -0.60]
+    zone_y: [-0.20, -0.45, -0.95, -1.45, -2.05, -2.10, -2.05, -1.35]
+    zone_yaw: [0.00, -0.30, -1.20, -1.57, -2.20, 2.90, 2.70, 1.57]
+    zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.22, 0.81, 0.44, 0.63]
+    zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED"]
+
+    arrival_tolerance_m: 0.12
+    yaw_tolerance_rad: 0.25
+    max_linear_speed: 0.16
+    max_angular_speed: 0.85
+    inspection_duration_s: 3.0
+    inspection_result_timeout_s: 8.0
+    treatment_alert_hold_s: 2.0
+    summary_republish_period_s: 5.0
+    return_to_start_after_route: true
+    return_strategy: odom_retrace
+    return_via_visited_zones: true
+    return_arrival_tolerance_m: 0.12
+    return_yaw_tolerance_rad: 0.25
+    nav_action_name: navigate_to_pose
+    nav2_cmd_topic: /nav2/cmd_vel
+    nav2_return_cmd_topic: /cmd_vel
+    nav2_frame_id: odom
+    nav2_home_x: 0.0
+    nav2_home_y: 0.0
+    nav2_home_yaw: 0.0
+    publish_nav2_initial_pose: false
+    publish_nav2_return_initial_pose: false
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_yaw: 0.0
+    nav2_return_wait_timeout_s: 30.0
+    nav2_return_settle_s: 2.0
+    nav2_return_goal_timeout_s: 120.0
+    nav2_return_success_tolerance_m: 0.25
+    nav2_return_fallback_strategy: odom_retrace
+    nav2_progress_timeout_s: 8.0
+    nav2_progress_min_delta_m: 0.05
+    nav2_safety_block_timeout_s: 2.0
+    nav2_recovery_backoff_s: 1.5
+    nav2_recovery_backoff_speed: -0.07
+    nav2_recovery_rotate_s: 3.0
+    nav2_recovery_angular_speed: 0.85
+    nav2_recovery_max_attempts: 4
+    safety_recovery_delay_s: 1.0
+    recovery_rotate_s: 3.0
+    recovery_angular_speed: 0.85
+    max_recovery_attempts_per_zone: 4
+
+inspection_twin_node:
+  ros__parameters:
+    physical_state_topic: /dt/physical/mission_state
+    state_topic: /dt/digital/mission_state
+    inspection_request_topic: /dt/physical/inspection_request
+    inspection_result_topic: /dt/digital/inspection_result
+    safety_state_topic: /dt/safety_state
+    marker_topic: /dt/digital/plant_markers
+
+    zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_g", "plant_h"]
+    zone_names: ["Start bed", "Upper east bed", "East middle bed", "Lower east bed", "South middle bed", "South center bed", "West lower bed", "West return bed"]
+    zone_x: [0.25, 0.75, 0.85, 0.85, 0.45, -0.25, -0.65, -0.60]
+    zone_y: [-0.20, -0.45, -0.95, -1.45, -2.05, -2.10, -2.05, -1.35]
+    zone_yaw: [0.00, -0.30, -1.20, -1.57, -2.20, 2.90, 2.70, 1.57]
+    zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.22, 0.81, 0.44, 0.63]
+    zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED"]
+
+    plant_stress_threshold: 0.50
+    processing_delay_s: 1.0
+    camera_health: healthy
+    frame_id: odom
+
+arena_map_node:
+  ros__parameters:
+    marker_topic: /dt/digital/arena_map
+    frame_id: odom
+
+twin_safety_node:
+  ros__parameters:
+    real_scan_topic: /scan
+    sim_scan_topic: /sim/scan
+    input_cmd_topic: /cmd_vel_raw
+    real_cmd_topic: /cmd_vel
+    sim_cmd_topic: /sim/cmd_vel
+    safety_state_topic: /dt/safety_state
+
+    use_real_scan: true
+    use_sim_scan: true
+    publish_to_real: true
+    publish_to_sim: true
+    stop_distance: 0.45
+    front_angle_deg: 30.0
+    scan_timeout_s: 1.0
+    fail_safe_on_stale_scan: false
