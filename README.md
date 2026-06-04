@@ -6,13 +6,13 @@ Option B means there is no physical TurtleBot3. The Gazebo TurtleBot3 is treated
 
 ## Entities
 
-- Physical stand-in: TurtleBot3 Burger in Gazebo inside `my_tb3_world`.
-- Digital entity: a second visual robot named `digital_burger` plus the `tb3_pesticide_dt` nodes, especially `inspection_twin_node`, `/dt/digital/mission_state`, `/dt/digital/inspection_result`, and RViz markers.
+- Physical stand-in: TurtleBot3 Burger in the original Gazebo arena inside `my_tb3_world`.
+- Digital entity: a second visual robot named `digital_burger` in a second copied Gazebo arena, plus the `tb3_pesticide_dt` nodes, especially `inspection_twin_node`, `/dt/digital/mission_state`, `/dt/digital/inspection_result`, and RViz markers.
 
 ## What The Demo Shows
 
-- Gazebo TurtleBot3 autonomously navigates to predefined plant zones with Nav2.
-- A second visual robot, `digital_burger`, mirrors the Gazebo TurtleBot pose with a small offset so both entities are visible.
+- Gazebo TurtleBot3 autonomously navigates to predefined plant zones with Nav2 in the physical stand-in arena.
+- A second visual robot, `digital_burger`, mirrors the Gazebo TurtleBot pose inside the copied digital arena.
 - At each plant, the mission waits to simulate hyperspectral plant stress/disease inspection.
 - The digital twin publishes `OK` or `TREATMENT_NEEDED`.
 - Treatment-needed plants include `recommendation: APPLY_PESTICIDE`.
@@ -90,7 +90,7 @@ When the robot approaches a wall or obstacle, `min_front_m` changes and `front_o
 ## Repo Contents
 
 - `tb3_pesticide_dt`: mission nodes, digital twin nodes, configs, maps, launch files, and runbook.
-- `my_tb3_world`: Gazebo arena world used by the simulation.
+- `my_tb3_world`: Gazebo arena worlds used by the simulation, including `new_world_two_arenas.world`.
 
 ## Build In Docker / ROS 2 Workspace
 
@@ -125,19 +125,20 @@ export TURTLEBOT3_MODEL=burger
 ### Terminal 1: Gazebo Physical Stand-In
 
 ```bash
-ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
+ros2 launch tb3_pesticide_dt option_b_two_arenas_world.launch.py gui:=true
 ```
 
 Use `gui:=false` if Gazebo GUI is too heavy and you only need headless simulation.
 
 ### Terminal 2: Visual Digital Robot
 
-This spawns the second visual-only robot and mirrors `/odom` from the Gazebo stand-in. The default `y_offset:=0.35` keeps the two robots separated visually.
+This spawns the second visual-only robot and mirrors `/odom` from the Gazebo stand-in. The digital arena is offset by `x_offset:=5.0`, so the second robot appears in the copied arena.
 
 ```bash
 ros2 launch tb3_pesticide_dt option_b_visual_twin.launch.py \
   model_name:=digital_burger \
-  y_offset:=0.35
+  x_offset:=5.0 \
+  y_offset:=0.0
 ```
 
 ### Terminal 3: Nav2
