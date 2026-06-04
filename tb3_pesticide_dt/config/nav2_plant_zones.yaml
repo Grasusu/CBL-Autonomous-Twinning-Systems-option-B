@@ -50,6 +50,8 @@ inspection_twin_node:
     inspection_result_topic: /dt/digital/inspection_result
     safety_state_topic: /dt/safety_state
     marker_topic: /dt/digital/plant_markers
+    environment_state_topic: /dt/physical/environment_state
+    digital_control_topic: /dt/digital/control
 
     zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_g", "plant_h", "plant_home"]
     zone_names: ["Start bed", "Upper east bed", "East middle bed", "Lower east bed", "South middle bed", "South center bed", "West lower bed", "West return bed", "Home / Start"]
@@ -63,6 +65,15 @@ inspection_twin_node:
     processing_delay_s: 1.0
     camera_health: healthy
     frame_id: map
+
+option_b_environment_node:
+  ros__parameters:
+    scan_topic: /scan
+    environment_state_topic: /dt/physical/environment_state
+    publish_period_s: 0.25
+    stop_distance_m: 0.45
+    front_angle_deg: 30.0
+    scan_timeout_s: 1.0
 
 arena_map_node:
   ros__parameters:

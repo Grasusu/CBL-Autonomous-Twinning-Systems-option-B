@@ -15,7 +15,76 @@ Option B means there is no physical TurtleBot3. The Gazebo TurtleBot3 is treated
 - At each plant, the mission waits to simulate hyperspectral plant stress/disease inspection.
 - The digital twin publishes `OK` or `TREATMENT_NEEDED`.
 - Treatment-needed plants include `recommendation: APPLY_PESTICIDE`.
+- Gazebo `/scan` is converted into `/dt/physical/environment_state` and mirrored inside `/dt/digital/mission_state`.
+- The digital side can publish `/dt/digital/control` to inject a camera health state change.
 - `/dt/physical/inspection_log` publishes per-plant evidence and the mission summary.
+
+## Rubric Evidence
+
+### 1. Bidirectional Pub/Sub
+
+Physical stand-in to digital side:
+
+```text
+/dt/physical/mission_state       -> inspection_twin_node subscribes
+/dt/physical/inspection_request   -> inspection_twin_node subscribes
+/dt/physical/environment_state    -> inspection_twin_node subscribes
+```
+
+Digital side to physical stand-in:
+
+```text
+/dt/digital/mission_state         -> plant_nav2_mission_node subscribes
+/dt/digital/inspection_result     -> plant_nav2_mission_node subscribes
+/dt/digital/control               -> inspection_twin_node subscribes for digital fault injection
+```
+
+Evidence commands:
+
+```bash
+ros2 topic list | grep /dt
+ros2 topic echo /dt/physical/mission_state
+ros2 topic echo /dt/digital/mission_state
+ros2 topic echo /dt/digital/inspection_result
+```
+
+### 2. State Synchronization
+
+The digital entity mirrors mission mode, active zone, camera health, latest inspection result, safety state, and environment state.
+
+Inject a digital-side camera fault:
+
+```bash
+ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
+  "{data: '{\"camera_health\":\"degraded\"}'}"
+```
+
+Then watch it appear in the digital state and later inspection logs:
+
+```bash
+ros2 topic echo /dt/digital/mission_state
+ros2 topic echo /dt/physical/inspection_log
+```
+
+Reset it:
+
+```bash
+ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
+  "{data: '{\"camera_health\":\"healthy\"}'}"
+```
+
+### 3. Environmental Interaction
+
+The Gazebo stand-in publishes `/scan`; `option_b_environment_node` converts this into `/dt/physical/environment_state`; `inspection_twin_node` mirrors that into `/dt/digital/mission_state`.
+
+Evidence commands:
+
+```bash
+ros2 topic echo /dt/physical/environment_state
+ros2 topic echo /dt/digital/mission_state
+```
+
+When the robot approaches a wall or obstacle, `min_front_m` changes and `front_obstacle` becomes true when the front distance is below the configured threshold. Nav2 uses the same simulated LIDAR/costmap to plan around obstacles.
 
 ## Repo Contents
 
@@ -85,6 +154,18 @@ ros2 topic echo /dt/physical/inspection_log
 ```
 
 You should see `INSPECTION_LOG` messages for each plant and a final `MISSION_SUMMARY`.
+
+### Terminal 5: Environment Evidence
+
+```bash
+ros2 topic echo /dt/physical/environment_state
+```
+
+### Terminal 6: Digital State Evidence
+
+```bash
+ros2 topic echo /dt/digital/mission_state
+```
 
 ## Notes
 
