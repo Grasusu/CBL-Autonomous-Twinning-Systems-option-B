@@ -7,11 +7,12 @@ Option B means there is no physical TurtleBot3. The Gazebo TurtleBot3 is treated
 ## Entities
 
 - Physical stand-in: TurtleBot3 Burger in Gazebo inside `my_tb3_world`.
-- Digital entity: `tb3_pesticide_dt` nodes, especially `inspection_twin_node`, `/dt/digital/mission_state`, `/dt/digital/inspection_result`, and RViz markers.
+- Digital entity: a second visual robot named `digital_burger` plus the `tb3_pesticide_dt` nodes, especially `inspection_twin_node`, `/dt/digital/mission_state`, `/dt/digital/inspection_result`, and RViz markers.
 
 ## What The Demo Shows
 
 - Gazebo TurtleBot3 autonomously navigates to predefined plant zones with Nav2.
+- A second visual robot, `digital_burger`, mirrors the Gazebo TurtleBot pose with a small offset so both entities are visible.
 - At each plant, the mission waits to simulate hyperspectral plant stress/disease inspection.
 - The digital twin publishes `OK` or `TREATMENT_NEEDED`.
 - Treatment-needed plants include `recommendation: APPLY_PESTICIDE`.
@@ -129,7 +130,17 @@ ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
 
 Use `gui:=false` if Gazebo GUI is too heavy and you only need headless simulation.
 
-### Terminal 2: Nav2
+### Terminal 2: Visual Digital Robot
+
+This spawns the second visual-only robot and mirrors `/odom` from the Gazebo stand-in. The default `y_offset:=0.35` keeps the two robots separated visually.
+
+```bash
+ros2 launch tb3_pesticide_dt option_b_visual_twin.launch.py \
+  model_name:=digital_burger \
+  y_offset:=0.35
+```
+
+### Terminal 3: Nav2
 
 ```bash
 ros2 launch turtlebot3_navigation2 navigation2.launch.py \
@@ -139,7 +150,7 @@ ros2 launch turtlebot3_navigation2 navigation2.launch.py \
 
 In RViz, set the initial pose at the Gazebo start location if AMCL is not aligned.
 
-### Terminal 3: Mission + Digital Twin
+### Terminal 4: Mission + Digital Twin
 
 ```bash
 ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
@@ -147,7 +158,7 @@ ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
   use_sim_time:=true
 ```
 
-### Terminal 4: Evidence Log
+### Terminal 5: Evidence Log
 
 ```bash
 ros2 topic echo /dt/physical/inspection_log
@@ -155,13 +166,13 @@ ros2 topic echo /dt/physical/inspection_log
 
 You should see `INSPECTION_LOG` messages for each plant and a final `MISSION_SUMMARY`.
 
-### Terminal 5: Environment Evidence
+### Terminal 6: Environment Evidence
 
 ```bash
 ros2 topic echo /dt/physical/environment_state
 ```
 
-### Terminal 6: Digital State Evidence
+### Terminal 7: Digital State Evidence
 
 ```bash
 ros2 topic echo /dt/digital/mission_state

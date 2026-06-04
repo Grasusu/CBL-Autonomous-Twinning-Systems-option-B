@@ -1,0 +1,84 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <model name="visual_twin_burger">
+    <static>true</static>
+    <link name="base_link">
+      <visual name="base">
+        <pose>0 0 0.055 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.145</radius>
+            <length>0.10</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.05 0.55 1.0 0.75</ambient>
+          <diffuse>0.05 0.55 1.0 0.75</diffuse>
+        </material>
+      </visual>
+      <visual name="top_plate">
+        <pose>0 0 0.125 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.22 0.18 0.035</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.10 0.90 0.75 0.80</ambient>
+          <diffuse>0.10 0.90 0.75 0.80</diffuse>
+        </material>
+      </visual>
+      <visual name="lidar">
+        <pose>0 0 0.19 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.055</radius>
+            <length>0.045</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.02 0.02 0.02 1.0</ambient>
+          <diffuse>0.02 0.02 0.02 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="left_wheel">
+        <pose>0 0.13 0.045 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.025</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.01 1.0</ambient>
+          <diffuse>0.01 0.01 0.01 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="right_wheel">
+        <pose>0 -0.13 0.045 1.5708 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.025</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.01 0.01 0.01 1.0</ambient>
+          <diffuse>0.01 0.01 0.01 1.0</diffuse>
+        </material>
+      </visual>
+      <visual name="front_arrow">
+        <pose>0.12 0 0.14 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.11 0.035 0.025</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
