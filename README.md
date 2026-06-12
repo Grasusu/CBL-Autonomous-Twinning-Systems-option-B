@@ -145,7 +145,7 @@ export DISPLAY=:1
 
 ## Final Demo Commands
 
-Use separate terminals for the most reliable final demo. In every Docker terminal, start with:
+Recommended demo flow: one launch terminal for the full robot mission, one dashboard terminal, and optionally one evidence terminal. In every Docker terminal, start with:
 
 ```bash
 cd /ws
@@ -156,47 +156,23 @@ export TURTLEBOT3_MODEL=burger
 export DISPLAY=:1
 ```
 
-### Terminal 1: Gazebo World
+### Terminal 1: Full Robot Mission
 
 ```bash
-ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
+ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
 ```
 
-### Terminal 2: Nav2
+This starts Gazebo, Nav2, the AMCL initial pose publisher, the plant mission, the digital dashboard/control node, and the evidence recorder. The launch intentionally waits about one minute before the robot moves so Nav2 and localization are stable before the first goal.
 
-```bash
-ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
-  use_sim_time:=true \
-  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml \
-  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml
+Expected route:
+
+```text
+plant_a -> plant_b -> plant_c -> plant_d -> plant_e -> plant_f -> plant_home
 ```
 
-Wait about 15-20 seconds before starting the initial pose and mission steps.
+The plants are small visual markers. The robot stops at scan poses about 0.55 m from each marker, waits for inspection, logs the plant health result, then continues.
 
-### Terminal 3: Initial Pose And Mission
-
-```bash
-ros2 run tb3_pesticide_dt nav2_initial_pose_node --ros-args \
-  -p use_sim_time:=true \
-  -p x:=-0.80 \
-  -p y:=-0.07 \
-  -p yaw:=0.0 \
-  -p duration_s:=20.0
-```
-
-After `Finished publishing Nav2 initial pose`, wait another 5 seconds, then start the mission:
-
-```bash
-ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
-  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_plant_zones.yaml \
-  use_sim_time:=true
-```
-
-This launch starts the digital twin, digital dashboard/control panel, evidence recorder, environment monitor, and mission node.
-
-### Terminal 4: Live Digital Dashboard And Evidence
-
-Main dashboard:
+### Terminal 2: Readable Dashboard
 
 ```bash
 ros2 run tb3_pesticide_dt option_b_dashboard_viewer
@@ -204,13 +180,7 @@ ros2 run tb3_pesticide_dt option_b_dashboard_viewer
 
 This viewer subscribes to `/dt/digital/dashboard` and shows only the important demo information: current mode, active plant, latest plant-health result, inspection history, environment state, and rubric flags.
 
-Quick one-line dashboard evidence:
-
-```bash
-ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
-```
-
-Rubric recorder:
+### Terminal 3: Evidence To Show The TA
 
 ```bash
 ros2 topic echo /dt/evidence_recording std_msgs/msg/String --full-length
@@ -220,12 +190,41 @@ Useful extra evidence commands:
 
 ```bash
 ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
-ros2 topic echo /dt/digital/dashboard std_msgs/msg/String --full-length
 ros2 topic echo /dt/demo_evidence std_msgs/msg/String --full-length
 ros2 topic echo /dt/physical/inspection_log std_msgs/msg/String --full-length
 ros2 topic echo /dt/physical/environment_state std_msgs/msg/String --full-length
 ros2 topic echo /dt/digital/mission_state std_msgs/msg/String --full-length
 ros2 topic echo /dt/digital/control std_msgs/msg/String --full-length
+```
+
+### Manual Fallback
+
+Use this only if you want to debug each subsystem separately.
+
+```bash
+ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
+```
+
+```bash
+ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
+  use_sim_time:=true \
+  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml \
+  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml
+```
+
+```bash
+ros2 run tb3_pesticide_dt nav2_initial_pose_node --ros-args \
+  -p use_sim_time:=true \
+  -p x:=-0.80 \
+  -p y:=-0.07 \
+  -p yaw:=0.0 \
+  -p duration_s:=14.0
+```
+
+```bash
+ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
+  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_plant_zones.yaml \
+  use_sim_time:=true
 ```
 
 After the route:

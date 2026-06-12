@@ -61,7 +61,7 @@ def generate_launch_description():
                 "x": -0.80,
                 "y": -0.07,
                 "yaw": 0.0,
-                "duration_s": 20.0,
+                "duration_s": 14.0,
                 "publish_period_s": 0.5,
             }
         ],
@@ -105,10 +105,10 @@ def generate_launch_description():
                 default_value=os.path.join(pkg_share, "config", "nav2_burger_option_b.yaml"),
             ),
             world_launch,
-            TimerAction(period=8.0, actions=[nav2_launch]),
-            TimerAction(period=18.0, actions=[startup_localization]),
-            TimerAction(period=25.0, actions=[initial_pose_node]),
-            TimerAction(period=48.0, actions=[startup_navigation]),
-            TimerAction(period=65.0, actions=[mission_launch]),
+            TimerAction(period=6.0, actions=[nav2_launch]),
+            TimerAction(period=15.0, actions=[startup_localization]),
+            TimerAction(period=20.0, actions=[initial_pose_node]),
+            TimerAction(period=38.0, actions=[startup_navigation]),
+            TimerAction(period=52.0, actions=[mission_launch]),
         ]
     )

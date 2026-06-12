@@ -26,13 +26,21 @@ The main runbook is the repository root `README.md`.
 
 ## Final Launches
 
-World:
+Preferred full demo:
+
+```bash
+ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
+```
+
+This starts Gazebo, Nav2, initial localization, the plant mission, the digital dashboard/control node, and evidence recording. It waits about one minute before movement so AMCL/Nav2 are stable.
+
+Manual world:
 
 ```bash
 ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
 ```
 
-Nav2:
+Manual Nav2:
 
 ```bash
 ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
@@ -41,7 +49,7 @@ ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
   params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml
 ```
 
-Mission and digital entity:
+Manual mission and digital entity:
 
 ```bash
 ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
