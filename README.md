@@ -1,73 +1,64 @@
 # CBL Option B Digital Twin
 
-Simulation-only fallback repo for the 2IRR10 final demo.
+Final simulation-only TurtleBot3 digital twin demo for the 2IRR10 course.
 
-Option B means there is no physical TurtleBot3. The Gazebo TurtleBot3 is treated as the physical stand-in/source of truth, and the ROS 2 digital twin nodes mirror its state, simulate plant health inspection, publish results, and log evidence.
-
-## Entities
-
-- Physical stand-in: TurtleBot3 Burger in the original Gazebo arena inside `my_tb3_world`.
-- Digital entity: a second visual robot named `digital_burger` in a second copied Gazebo arena, plus the `tb3_pesticide_dt` nodes, especially `inspection_twin_node`, `/dt/digital/mission_state`, `/dt/digital/inspection_result`, and RViz markers.
+This is the official Option B implementation: there is no physical TurtleBot3. A Gazebo TurtleBot3 acts as the physical stand-in/source of truth, while a ROS 2 digital control panel plus digital twin nodes mirror state, inspect plant zones, publish plant-health results, and record rubric evidence.
 
 ## What The Demo Shows
 
-- Gazebo TurtleBot3 autonomously navigates to predefined plant zones with Nav2 in the physical stand-in arena.
-- A second visual robot, `digital_burger`, mirrors the Gazebo TurtleBot pose inside the copied digital arena.
-- At each plant, the mission waits to simulate hyperspectral plant stress/disease inspection.
-- The digital twin publishes `OK` or `TREATMENT_NEEDED`.
-- Treatment-needed plants include `recommendation: APPLY_PESTICIDE`.
-- Gazebo `/scan` is converted into `/dt/physical/environment_state` and mirrored inside `/dt/digital/mission_state`.
-- The digital side can publish `/dt/digital/control` to inject a camera health state change.
-- `/dt/physical/inspection_log` publishes per-plant evidence and the mission summary.
+- The Gazebo TurtleBot3 autonomously navigates through 6 plant inspection zones with Nav2.
+- A digital control panel publishes `/dt/digital/dashboard`, sends control commands on `/dt/digital/control`, and can be viewed with a readable terminal dashboard.
+- The robot stops beside each plant, faces it, waits 7 seconds, and simulates hyperspectral plant stress/disease inspection.
+- The digital twin returns `OK` or `TREATMENT_NEEDED`; treatment-needed plants recommend `APPLY_PESTICIDE`.
+- Gazebo `/scan` is converted into `/dt/physical/environment_state` and mirrored into `/dt/digital/mission_state`.
+- `/dt/demo_evidence` and `/dt/evidence_recording` provide live proof for the rubric.
+- Raw proof messages are saved to `/tmp/tb3_option_b_demo_evidence.jsonl`.
 
-## Rubric Evidence
+## Rubric Mapping
 
 ### 1. Bidirectional Pub/Sub
 
 Physical stand-in to digital side:
 
 ```text
-/dt/physical/mission_state       -> inspection_twin_node subscribes
-/dt/physical/inspection_request   -> inspection_twin_node subscribes
-/dt/physical/environment_state    -> inspection_twin_node subscribes
+/dt/physical/mission_state
+/dt/physical/inspection_request
+/dt/physical/environment_state
 ```
 
 Digital side to physical stand-in:
 
 ```text
-/dt/digital/mission_state         -> plant_nav2_mission_node subscribes
-/dt/digital/inspection_result     -> plant_nav2_mission_node subscribes
-/dt/digital/control               -> inspection_twin_node subscribes for digital fault injection
+/dt/digital/mission_state
+/dt/digital/inspection_result
+/dt/digital/control
+/dt/digital/dashboard
+/dt/digital/dashboard_summary
 ```
 
-Evidence commands:
-
-```bash
-ros2 topic list | grep /dt
-ros2 topic echo /dt/physical/mission_state
-ros2 topic echo /dt/digital/mission_state
-ros2 topic echo /dt/digital/inspection_result
-```
+The mission node consumes digital inspection results before moving to the next plant, so the route is not just a one-way animation. The dashboard also publishes an initial camera-health command on `/dt/digital/control`, proving that the digital entity can affect the twin state.
 
 ### 2. State Synchronization
 
-The digital entity mirrors mission mode, active zone, camera health, latest inspection result, safety state, and environment state.
+Mirrored state includes:
 
-Inject a digital-side camera fault:
+```text
+mission mode
+active plant zone
+AMCL/map pose
+camera health
+latest inspection result
+environment state
+```
+
+Optional fault injection:
 
 ```bash
 ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
   "{data: '{\"camera_health\":\"degraded\"}'}"
 ```
 
-Then watch it appear in the digital state and later inspection logs:
-
-```bash
-ros2 topic echo /dt/digital/mission_state
-ros2 topic echo /dt/physical/inspection_log
-```
-
-Reset it:
+Reset:
 
 ```bash
 ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
@@ -76,43 +67,85 @@ ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
 
 ### 3. Environmental Interaction
 
-The Gazebo stand-in publishes `/scan`; `option_b_environment_node` converts this into `/dt/physical/environment_state`; `inspection_twin_node` mirrors that into `/dt/digital/mission_state`.
+The stand-in robot uses Gazebo LIDAR for Nav2 planning. The same `/scan` stream is converted into `/dt/physical/environment_state`, then mirrored by the digital twin. During the route, `min_front_m`, `front_obstacle`, and `environment_mode` change as the robot approaches walls and arena obstacles. The plant models are visual inspection targets, so they make the concept clear without trapping Nav2 in decorative collision geometry.
 
-Evidence commands:
+## Repository Layout
 
-```bash
-ros2 topic echo /dt/physical/environment_state
-ros2 topic echo /dt/digital/mission_state
+```text
+CBL-Option-B-Digital-Twin/
+  my_tb3_world/          Gazebo world with the arena and visual plant markers
+  tb3_pesticide_dt/      ROS 2 package with mission, twin, evidence, maps, launch files
 ```
 
-When the robot approaches a wall or obstacle, `min_front_m` changes and `front_obstacle` becomes true when the front distance is below the configured threshold. Nav2 uses the same simulated LIDAR/costmap to plan around obstacles.
+Important files:
 
-## Repo Contents
+```text
+tb3_pesticide_dt/config/nav2_plant_zones.yaml       plant route and inspection settings
+tb3_pesticide_dt/config/nav2_burger_option_b.yaml   Nav2 params tuned for Gazebo Option B
+tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_node.py
+tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_viewer.py
+tb3_pesticide_dt/launch/pesticide_world.launch.py
+tb3_pesticide_dt/launch/option_b_navigation2.launch.py
+tb3_pesticide_dt/launch/pesticide_nav2_dt.launch.py
+```
 
-- `tb3_pesticide_dt`: mission nodes, digital twin nodes, configs, maps, launch files, and runbook.
-- `my_tb3_world`: Gazebo arena worlds used by the simulation, including `new_world_two_arenas.world`.
+## Setup In Docker
 
-## Build In Docker / ROS 2 Workspace
-
-Clone this repo into the `src` folder of a ROS 2 workspace:
+From a Mac terminal:
 
 ```bash
-cd /ws/src
-git clone <OPTION_B_REPO_URL> cbl_option_b
+colima start --cpu 4 --memory 8 --runtime docker
+docker context use colima
 
+mkdir -p "$HOME/option_b_ws/src"
+
+rsync -a --delete \
+  "$HOME/CBL-Option-B-Digital-Twin/" \
+  "$HOME/option_b_ws/src/cbl_option_b/"
+
+docker rm -f turtlebot3_container 2>/dev/null || true
+
+docker run --rm -it \
+  -p 5901:5901 \
+  -v "$HOME/option_b_ws:/ws" \
+  --name turtlebot3_container \
+  turtlebot3_ws_vnc
+```
+
+Leave that terminal open.
+
+In a second Mac terminal, start VNC:
+
+```bash
+docker exec turtlebot3_container bash -lc \
+'rm -f /tmp/.X1-lock /tmp/.X11-unix/X1; vncserver -kill :1 2>/dev/null || true; vncserver :1 -geometry 1280x800 -depth 24 -localhost no -rfbport 5901'
+```
+
+Open VNC at `127.0.0.1:5901`, password `ros`.
+
+## Build
+
+Open a Docker terminal:
+
+```bash
+docker exec -it turtlebot3_container bash
+```
+
+Inside Docker:
+
+```bash
 cd /ws
 source /opt/ros/jazzy/setup.bash
 source /opt/turtlebot3_ws/install/setup.bash
 colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
 source install/setup.bash
 export TURTLEBOT3_MODEL=burger
+export DISPLAY=:1
 ```
 
-If you are copying the folder manually, copy the whole `CBL-Option-B-Digital-Twin` folder into `/ws/src/cbl_option_b`, then run the same build commands from `/ws`.
+## Final Demo Commands
 
-## Run Option B Demo
-
-Use separate terminals. Source the workspace in each one:
+Use separate terminals for the most reliable final demo. In every Docker terminal, start with:
 
 ```bash
 cd /ws
@@ -120,38 +153,38 @@ source /opt/ros/jazzy/setup.bash
 source /opt/turtlebot3_ws/install/setup.bash
 source install/setup.bash
 export TURTLEBOT3_MODEL=burger
+export DISPLAY=:1
 ```
 
-### Terminal 1: Gazebo Physical Stand-In
+### Terminal 1: Gazebo World
 
 ```bash
-ros2 launch tb3_pesticide_dt option_b_two_arenas_world.launch.py gui:=true
+ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
 ```
 
-Use `gui:=false` if Gazebo GUI is too heavy and you only need headless simulation.
-
-### Terminal 2: Visual Digital Robot
-
-This spawns the second visual-only robot and mirrors `/odom` from the Gazebo stand-in. The digital arena is offset by `x_offset:=5.0`, so the second robot appears in the copied arena.
+### Terminal 2: Nav2
 
 ```bash
-ros2 launch tb3_pesticide_dt option_b_visual_twin.launch.py \
-  model_name:=digital_burger \
-  x_offset:=5.0 \
-  y_offset:=0.0
-```
-
-### Terminal 3: Nav2
-
-```bash
-ros2 launch turtlebot3_navigation2 navigation2.launch.py \
+ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
   use_sim_time:=true \
-  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml
+  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml \
+  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml
 ```
 
-In RViz, set the initial pose at the Gazebo start location if AMCL is not aligned.
+Wait about 15-20 seconds before starting the initial pose and mission steps.
 
-### Terminal 4: Mission + Digital Twin
+### Terminal 3: Initial Pose And Mission
+
+```bash
+ros2 run tb3_pesticide_dt nav2_initial_pose_node --ros-args \
+  -p use_sim_time:=true \
+  -p x:=-0.80 \
+  -p y:=-0.07 \
+  -p yaw:=0.0 \
+  -p duration_s:=20.0
+```
+
+After `Finished publishing Nav2 initial pose`, wait another 5 seconds, then start the mission:
 
 ```bash
 ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
@@ -159,28 +192,144 @@ ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
   use_sim_time:=true
 ```
 
-### Terminal 5: Evidence Log
+This launch starts the digital twin, digital dashboard/control panel, evidence recorder, environment monitor, and mission node.
+
+### Terminal 4: Live Digital Dashboard And Evidence
+
+Main dashboard:
 
 ```bash
-ros2 topic echo /dt/physical/inspection_log
+ros2 run tb3_pesticide_dt option_b_dashboard_viewer
 ```
 
-You should see `INSPECTION_LOG` messages for each plant and a final `MISSION_SUMMARY`.
+This viewer subscribes to `/dt/digital/dashboard` and shows only the important demo information: current mode, active plant, latest plant-health result, inspection history, environment state, and rubric flags.
 
-### Terminal 6: Environment Evidence
+Quick one-line dashboard evidence:
 
 ```bash
-ros2 topic echo /dt/physical/environment_state
+ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
 ```
 
-### Terminal 7: Digital State Evidence
+Rubric recorder:
 
 ```bash
-ros2 topic echo /dt/digital/mission_state
+ros2 topic echo /dt/evidence_recording std_msgs/msg/String --full-length
 ```
 
-## Notes
+Useful extra evidence commands:
 
-- Keep this repo separate from the main Option A repo.
-- Do not clone both this repo and the original `tb3_pesticide_dt` package into the same workspace `src` unless you remove/rename one of them, because they contain the same ROS package names.
-- The full package runbook is inside `tb3_pesticide_dt/README.md`.
+```bash
+ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
+ros2 topic echo /dt/digital/dashboard std_msgs/msg/String --full-length
+ros2 topic echo /dt/demo_evidence std_msgs/msg/String --full-length
+ros2 topic echo /dt/physical/inspection_log std_msgs/msg/String --full-length
+ros2 topic echo /dt/physical/environment_state std_msgs/msg/String --full-length
+ros2 topic echo /dt/digital/mission_state std_msgs/msg/String --full-length
+ros2 topic echo /dt/digital/control std_msgs/msg/String --full-length
+```
+
+After the route:
+
+```bash
+tail -n 80 /tmp/tb3_option_b_demo_evidence.jsonl
+```
+
+## What To Point Out In The Presentation
+
+Show `/dt/evidence_recording` and point out that message counts increase for:
+
+```text
+physical_mission_state
+physical_inspection_request
+physical_environment_state
+digital_mission_state
+digital_inspection_result
+digital_dashboard
+physical_inspection_log
+demo_evidence
+```
+
+`digital_control` appears because the digital dashboard publishes the initial camera-health command. It also changes again if you run the optional fault injection command.
+
+Show `/dt/demo_evidence` and point out:
+
+```text
+rubric_ready.bidirectional_pubsub
+rubric_ready.state_synchronization
+rubric_ready.environmental_interaction
+bidirectional_pubsub.message_counts
+message_counts.digital_control
+message_counts.digital_dashboard
+state_synchronization.mirrored_pose
+environmental_interaction.min_front_m
+environmental_interaction.environment_change_seen
+environmental_interaction.front_obstacle_seen
+latest_inspection.status
+latest_inspection.recommendation
+```
+
+Expected mission behavior:
+
+```text
+plant_a -> OK
+plant_b -> TREATMENT_NEEDED
+plant_c -> OK
+plant_d -> TREATMENT_NEEDED
+plant_e -> TREATMENT_NEEDED
+plant_f -> OK
+plant_home -> RETURNED_HOME
+```
+
+## Optional One-Terminal Demo
+
+This is convenient for a quick screen recording, but the multi-terminal flow above is safer for debugging.
+
+```bash
+cd /ws
+source /opt/ros/jazzy/setup.bash
+source /opt/turtlebot3_ws/install/setup.bash
+source install/setup.bash
+export TURTLEBOT3_MODEL=burger
+export DISPLAY=:1
+
+ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
+```
+
+This starts only the main Gazebo robot. The digital entity is the ROS dashboard/control panel, not a second visual robot.
+
+## Troubleshooting
+
+If `Package tb3_pesticide_dt not found`, rebuild and source:
+
+```bash
+cd /ws
+source /opt/ros/jazzy/setup.bash
+source /opt/turtlebot3_ws/install/setup.bash
+colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
+source install/setup.bash
+```
+
+If Nav2 prints collision monitor timestamp warnings, make sure Terminal 3 uses:
+
+```bash
+ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py ...
+```
+
+Do not use the default `turtlebot3_navigation2 navigation2.launch.py` for the final Option B demo.
+
+If Docker says the container does not exist, recreate it with the setup command above. `docker restart turtlebot3_container` only works after the container has already been created.
+
+If Gazebo GUI fails, restart VNC and open `127.0.0.1:5901` again.
+
+## Verification Already Run
+
+The repo was checked with:
+
+```bash
+python3 -m compileall
+colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
+colcon test --packages-select tb3_pesticide_dt
+ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=false
+```
+
+At the time of this update, Docker build passed, package tests passed, and a full headless end-to-end run completed all 6 plant inspections and returned to `plant_home` with `RETURNED_HOME`.
