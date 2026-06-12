@@ -75,7 +75,12 @@ class PlantNav2MissionNode(Node):
         self.goal_started_at: Optional[float] = None
         self.goal_handle = None
         self.goal_in_flight = False
+        self.active_goal_id: Optional[str] = None
+        self.retry_goal_after: Optional[float] = None
+        self.goal_retry_counts: Dict[str, int] = {}
         self.return_goal_sent = False
+        self.near_goal_since: Optional[float] = None
+        self.current_pose: Optional[Dict] = None
         self.localization_started_at: Optional[float] = None
         self.amcl_home_pose: Optional[Dict] = None  # captured from AMCL at startup
         self._last_initial_pose_pub: Optional[float] = None
@@ -131,6 +136,12 @@ class PlantNav2MissionNode(Node):
         self.declare_parameter("control_period_s", 0.20)
         self.declare_parameter("wait_for_nav2_timeout_s", 60.0)
         self.declare_parameter("goal_timeout_s", 90.0)
+        self.declare_parameter("accept_near_goal_distance_m", 0.30)
+        self.declare_parameter("accept_near_home_distance_m", 0.25)
+        self.declare_parameter("accept_near_goal_after_s", 4.0)
+        self.declare_parameter("goal_retry_delay_s", 5.0)
+        self.declare_parameter("max_goal_retries", 5)
+        self.declare_parameter("retry_fast_failure_window_s", 12.0)
         self.declare_parameter("inspection_duration_s", 3.0)
         self.declare_parameter("inspection_result_timeout_s", 8.0)
         self.declare_parameter("treatment_alert_hold_s", 2.0)
@@ -219,25 +230,24 @@ class PlantNav2MissionNode(Node):
             self.get_logger().warn(f"TF home lookup failed: {exc}")
 
     def on_amcl_pose(self, msg: PoseWithCovarianceStamped):
-        """Track AMCL's estimate of the robot position during the settle phase.
+        """Track AMCL's estimate of the robot position.
 
-        We keep updating until navigation begins so that the last-received pose
-        (after AMCL has matched the map) is used as the home target on return.
-        This corrects for AMCL converging to a position slightly offset from the
-        configured home_pose (0, 0) due to particle-filter initialisation.
+        During the settle phase, this also captures the home pose.  During the
+        mission it provides a live state value for the digital twin evidence.
         """
-        if self.mode not in ("WAITING_FOR_NAV2", "LOCALIZING"):
-            return  # navigation already underway — do not change home pose
         q = msg.pose.pose.orientation
         yaw = math.atan2(
             2.0 * (q.w * q.z + q.x * q.y),
             1.0 - 2.0 * (q.y * q.y + q.z * q.z),
         )
-        self.amcl_home_pose = {
+        self.current_pose = {
             "x": msg.pose.pose.position.x,
             "y": msg.pose.pose.position.y,
             "yaw": yaw,
         }
+        if self.mode not in ("WAITING_FOR_NAV2", "LOCALIZING"):
+            return  # navigation already underway — do not change home pose
+        self.amcl_home_pose = dict(self.current_pose)
         self.get_logger().info(
             f"AMCL pose update (settling): "
             f"x={self.amcl_home_pose['x']:.3f} "
@@ -303,8 +313,14 @@ class PlantNav2MissionNode(Node):
             return
 
         if self.mode == "NAVIGATING":
+            if self.retry_goal_after is not None:
+                if now < self.retry_goal_after:
+                    self.publish_state(False)
+                    return
+                self.retry_goal_after = None
             if not self.goal_in_flight:
                 self.send_current_zone_goal()
+            self.check_goal_close_enough(now)
             self.check_goal_timeout(now)
             self.publish_state(False)
             return
@@ -321,6 +337,11 @@ class PlantNav2MissionNode(Node):
             return
 
         if self.mode == "RETURNING_HOME":
+            if self.retry_goal_after is not None:
+                if now < self.retry_goal_after:
+                    self.publish_state(False)
+                    return
+                self.retry_goal_after = None
             if not self.goal_in_flight and not self.return_goal_sent:
                 home = self.home_goal_pose()
                 if bool(self.get_parameter("use_captured_home_pose").value) and self.amcl_home_pose is None:
@@ -329,6 +350,7 @@ class PlantNav2MissionNode(Node):
                         "Return position may be inaccurate if AMCL drifted."
                     )
                 self.send_pose_goal("home", "Return to start", home, returning_home=True)
+            self.check_goal_close_enough(now)
             self.check_goal_timeout(now)
             self.publish_state(False)
             return
@@ -359,7 +381,7 @@ class PlantNav2MissionNode(Node):
         if zone.zone_id == "plant_home":
             home = self.home_goal_pose()
             self.get_logger().info(
-                "Route waypoint 9 is plant_home; sending the final "
+                f"Route waypoint {self.current_index + 1} is plant_home; sending the final "
                 "Nav2 goal back to the start instead of inspecting it."
             )
             self.send_pose_goal(zone.zone_id, zone.name, home, returning_home=True)
@@ -379,6 +401,8 @@ class PlantNav2MissionNode(Node):
         self.goal_in_flight = True
         self.goal_started_at = time.monotonic()
         self.latest_feedback = {"goal_id": goal_id, "goal_name": goal_name}
+        self.active_goal_id = goal_id
+        self.near_goal_since = None
         self.return_goal_sent = returning_home
 
         future = self.nav_client.send_goal_async(goal_msg, feedback_callback=self.on_nav_feedback)
@@ -406,10 +430,17 @@ class PlantNav2MissionNode(Node):
         return msg
 
     def on_goal_response(self, future, goal_id: str, goal_name: str, returning_home: bool):
+        if goal_id != self.active_goal_id:
+            self.get_logger().info(f"Ignoring stale Nav2 goal response for {goal_id}")
+            return
         self.goal_handle = future.result()
         if not self.goal_handle.accepted:
             self.goal_in_flight = False
             self.goal_handle = None
+            self.active_goal_id = None
+            self.near_goal_since = None
+            if self.schedule_goal_retry(goal_id, "GOAL_REJECTED", returning_home):
+                return
             if returning_home:
                 self.publish_return_home_log("RETURN_REJECTED", goal_id, goal_name)
                 self.finish_mission("RETURN_REJECTED")
@@ -424,17 +455,32 @@ class PlantNav2MissionNode(Node):
 
     def on_nav_feedback(self, feedback_msg):
         feedback = feedback_msg.feedback
+        distance_remaining = float(feedback.distance_remaining)
         self.latest_feedback = {
-            "distance_remaining": round(float(feedback.distance_remaining), 3),
+            "distance_remaining": round(distance_remaining, 3),
             "number_of_recoveries": int(feedback.number_of_recoveries),
             "navigation_time_s": int(feedback.navigation_time.sec),
         }
+        near_m = float(self.get_parameter("accept_near_goal_distance_m").value)
+        if self.return_goal_sent:
+            near_m = float(self.get_parameter("accept_near_home_distance_m").value)
+        if distance_remaining <= near_m:
+            if self.near_goal_since is None:
+                self.near_goal_since = time.monotonic()
+        else:
+            self.near_goal_since = None
 
     def on_nav_result(self, future, goal_id: str, goal_name: str, returning_home: bool):
+        if goal_id != self.active_goal_id:
+            self.get_logger().info(f"Ignoring stale Nav2 result for {goal_id}")
+            return
         result = future.result()
+        elapsed = time.monotonic() - (self.goal_started_at or time.monotonic())
         self.goal_in_flight = False
         self.goal_handle = None
         self.goal_started_at = None
+        self.active_goal_id = None
+        self.near_goal_since = None
 
         if result.status == GoalStatus.STATUS_SUCCEEDED:
             if returning_home:
@@ -447,6 +493,10 @@ class PlantNav2MissionNode(Node):
 
         status_text = self.goal_status_name(result.status)
         error_msg = getattr(result.result, "error_msg", "")
+        fast_window = float(self.get_parameter("retry_fast_failure_window_s").value)
+        if elapsed <= fast_window and status_text in {"ABORTED", "CANCELED", "UNKNOWN"}:
+            if self.schedule_goal_retry(goal_id, status_text, returning_home):
+                return
         if returning_home:
             final_status = f"RETURN_{status_text}"
             self.publish_return_home_log(final_status, goal_id, goal_name, error_msg)
@@ -454,6 +504,66 @@ class PlantNav2MissionNode(Node):
         else:
             self.log_skipped_zone(f"NAV_{status_text}", error_msg or f"Nav2 status {status_text}")
             self.advance_zone()
+
+    def schedule_goal_retry(self, goal_id: str, reason: str, returning_home: bool) -> bool:
+        max_retries = int(self.get_parameter("max_goal_retries").value)
+        retries = self.goal_retry_counts.get(goal_id, 0)
+        if retries >= max_retries:
+            return False
+        self.goal_retry_counts[goal_id] = retries + 1
+        delay = float(self.get_parameter("goal_retry_delay_s").value)
+        self.retry_goal_after = time.monotonic() + delay
+        self.goal_in_flight = False
+        self.goal_handle = None
+        self.goal_started_at = None
+        self.active_goal_id = None
+        self.near_goal_since = None
+        if returning_home:
+            self.return_goal_sent = False
+        self.latest_feedback = {
+            "goal_id": goal_id,
+            "retry_reason": reason,
+            "retry_count": retries + 1,
+            "retry_delay_s": delay,
+        }
+        self.get_logger().warn(
+            f"{goal_id} {reason}; retry {retries + 1}/{max_retries} in {delay:.1f}s"
+        )
+        return True
+
+    def check_goal_close_enough(self, now: float):
+        if (
+            not self.goal_in_flight
+            or self.goal_handle is None
+            or self.near_goal_since is None
+        ):
+            return
+        accept_after = float(self.get_parameter("accept_near_goal_after_s").value)
+        if accept_after <= 0.0 or (now - self.near_goal_since) < accept_after:
+            return
+        goal_id = self.active_goal_id or "unknown_goal"
+        feedback = self.latest_feedback.get("distance_remaining", "unknown")
+        if self.return_goal_sent:
+            self.get_logger().info(
+                f"{goal_id} is close enough to home "
+                f"(distance_remaining={feedback}); accepting return"
+            )
+        else:
+            self.get_logger().info(
+                f"{goal_id} is close enough for inspection "
+                f"(distance_remaining={feedback}); accepting waypoint"
+            )
+        self.goal_handle.cancel_goal_async()
+        self.goal_in_flight = False
+        self.goal_handle = None
+        self.goal_started_at = None
+        self.active_goal_id = None
+        self.near_goal_since = None
+        if self.return_goal_sent:
+            self.publish_return_home_log("RETURNED_HOME", goal_id, "Home / Start")
+            self.finish_mission("RETURNED_HOME")
+            return
+        self.begin_inspection()
 
     def check_goal_timeout(self, now: float):
         if not self.goal_in_flight or self.goal_started_at is None:
@@ -467,7 +577,9 @@ class PlantNav2MissionNode(Node):
         self.goal_in_flight = False
         self.goal_handle = None
         self.goal_started_at = None
-        if self.mode == "RETURNING_HOME":
+        self.active_goal_id = None
+        self.near_goal_since = None
+        if self.mode == "RETURNING_HOME" or self.return_goal_sent:
             self.publish_return_home_log("RETURN_TIMEOUT")
             self.finish_mission("RETURN_TIMEOUT")
         else:
@@ -612,6 +724,7 @@ class PlantNav2MissionNode(Node):
         self.inspection_started_at = None
         self.hold_until = None
         self.latest_feedback = {}
+        self.near_goal_since = None
         if self.current_index >= len(self.zones):
             if bool(self.get_parameter("return_to_start").value):
                 self.mode = "RETURNING_HOME"
@@ -644,6 +757,7 @@ class PlantNav2MissionNode(Node):
             "mode": self.mode,
             "current_zone_id": zone.zone_id if zone else None,
             "current_zone_name": zone.name if zone else None,
+            "pose": self.current_pose,
             "mission_index": self.current_index,
             "zone_count": len(self.zones),
             "goal_in_flight": self.goal_in_flight,

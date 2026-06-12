@@ -26,9 +26,9 @@ def generate_launch_description():
             DeclareLaunchArgument("model_name", default_value="digital_burger"),
             DeclareLaunchArgument("source_topic", default_value="/odom"),
             DeclareLaunchArgument("world_name", default_value="default"),
-            DeclareLaunchArgument("mirror_period_s", default_value="0.25"),
-            DeclareLaunchArgument("x_offset", default_value="0.0"),
-            DeclareLaunchArgument("y_offset", default_value="0.35"),
+            DeclareLaunchArgument("mirror_period_s", default_value="0.08"),
+            DeclareLaunchArgument("x_offset", default_value="5.0"),
+            DeclareLaunchArgument("y_offset", default_value="0.0"),
             DeclareLaunchArgument("yaw_offset", default_value="0.0"),
             DeclareLaunchArgument("z", default_value="0.02"),
             Node(
@@ -65,8 +65,8 @@ def generate_launch_description():
                         "y_offset": y_offset,
                         "yaw_offset": yaw_offset,
                         "z": z,
-                        "min_translation_delta_m": 0.005,
-                        "min_yaw_delta_rad": 0.01,
+                        "min_translation_delta_m": 0.001,
+                        "min_yaw_delta_rad": 0.003,
                     }
                 ],
             ),

@@ -21,6 +21,7 @@ class OptionBEnvironmentNode(Node):
         super().__init__("option_b_environment_node")
         self.declare_parameter("scan_topic", "/scan")
         self.declare_parameter("environment_state_topic", "/dt/physical/environment_state")
+        self.declare_parameter("source_entity", "gazebo_physical_standin")
         self.declare_parameter("publish_period_s", 0.25)
         self.declare_parameter("stop_distance_m", 0.45)
         self.declare_parameter("front_angle_deg", 30.0)
@@ -74,15 +75,17 @@ class OptionBEnvironmentNode(Node):
         now = time.monotonic()
         timeout = float(self.get_parameter("scan_timeout_s").value)
         stale = self.latest_scan_at is None or (now - self.latest_scan_at) > timeout
+        front_obstacle = bool(self.front_obstacle and not stale)
         payload = {
             "event": "ENVIRONMENT_STATE",
-            "entity": "gazebo_physical_standin",
+            "entity": str(self.get_parameter("source_entity").value),
             "scan_topic": str(self.get_parameter("scan_topic").value),
             "front_angle_deg": float(self.get_parameter("front_angle_deg").value),
             "stop_distance_m": float(self.get_parameter("stop_distance_m").value),
             "min_front_m": None if self.min_front_m is None else round(float(self.min_front_m), 3),
-            "front_obstacle": bool(self.front_obstacle and not stale),
+            "front_obstacle": front_obstacle,
             "scan_stale": bool(stale),
+            "environment_mode": "OBSTACLE_AHEAD" if front_obstacle else ("SCAN_STALE" if stale else "CLEAR"),
         }
         self.pub_state.publish(String(data=json.dumps(payload, sort_keys=True)))
 
