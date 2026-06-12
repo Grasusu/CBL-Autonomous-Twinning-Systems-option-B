@@ -27,11 +27,11 @@ plant_nav2_mission_node:
     # First six stops are inspected. plant_home is the hardcoded final
     # waypoint back to the start and is not inspected.
     zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_home"]
-    zone_names: ["North west plant", "North east plant", "East center plant", "Middle center plant", "West center plant", "Home-side plant", "Home / Start"]
+    zone_names: ["North west plant", "North east plant", "East plant", "South east plant", "South center plant", "South west plant", "Home / Start"]
     # These are scan poses, not plant centers.  Each pose is about 0.55 m
     # from the visual plant marker so the robot stops at a consistent distance.
-    zone_x: [-0.60, 0.80, 1.35, 0.60, -0.30, -0.80, -0.80]
-    zone_y: [0.35, 0.35, 0.10, -0.10, -0.30, -0.10, -0.07]
+    zone_x: [-0.60, 0.80, 1.40, 1.40, 0.90, -0.60, -0.80]
+    zone_y: [0.35, 0.35, -0.30, -1.30, -2.00, -2.00, -0.07]
     # Each yaw points the robot toward the nearby plant marker.
     zone_yaw: [0.13, 0.13, 0.13, 0.13, 0.13, 0.13, 0.0]
     zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.81, 0.44, 0.0]
@@ -66,9 +66,9 @@ inspection_twin_node:
     digital_control_topic: /dt/digital/control
 
     zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_home"]
-    zone_names: ["North west plant", "North east plant", "East center plant", "Middle center plant", "West center plant", "Home-side plant", "Home / Start"]
-    zone_x: [-0.60, 0.80, 1.35, 0.60, -0.30, -0.80, -0.80]
-    zone_y: [0.35, 0.35, 0.10, -0.10, -0.30, -0.10, -0.07]
+    zone_names: ["North west plant", "North east plant", "East plant", "South east plant", "South center plant", "South west plant", "Home / Start"]
+    zone_x: [-0.60, 0.80, 1.40, 1.40, 0.90, -0.60, -0.80]
+    zone_y: [0.35, 0.35, -0.30, -1.30, -2.00, -2.00, -0.07]
     zone_yaw: [0.13, 0.13, 0.13, 0.13, 0.13, 0.13, 0.0]
     zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.81, 0.44, 0.0]
     zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "TREATMENT_NEEDED", "OK", "RETURN_HOME"]
