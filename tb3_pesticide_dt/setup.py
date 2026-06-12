@@ -39,6 +39,10 @@ setup(
             "nav2_initial_pose_node = tb3_pesticide_dt.nav2_initial_pose_node:main",
             "gazebo_pose_mirror_node = tb3_pesticide_dt.gazebo_pose_mirror_node:main",
             "option_b_environment_node = tb3_pesticide_dt.option_b_environment_node:main",
+            "demo_evidence_node = tb3_pesticide_dt.demo_evidence_node:main",
+            "evidence_recorder_node = tb3_pesticide_dt.evidence_recorder_node:main",
+            "option_b_dashboard_node = tb3_pesticide_dt.option_b_dashboard_node:main",
+            "option_b_dashboard_viewer = tb3_pesticide_dt.option_b_dashboard_viewer:main",
         ],
     },
 )
