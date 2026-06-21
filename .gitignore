@@ -8,3 +8,4 @@ log/
 *.bag
 *.db3
 *.log
+outputs/

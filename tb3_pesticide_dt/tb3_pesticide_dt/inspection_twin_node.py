@@ -50,6 +50,7 @@ class InspectionTwinNode(Node):
         self.latest_safety_state: Dict = {}
         self.latest_environment_state: Dict = {}
         self.camera_health_override = None
+        self.mirrored_camera_health = None  # health reported by the robot's camera
         self.pending_requests: Dict[int, Dict] = {}
         self.zone_results: Dict[str, Dict] = {}
         self.last_state_publish_at = 0.0
@@ -184,15 +185,22 @@ class InspectionTwinNode(Node):
 
     def publish_inspection_result(self, request: Dict):
         zone = self.zones_by_id[request["zone_id"]]
-        camera_health = self.current_camera_health()
+        # The reading comes from the robot's camera (carried in the request); the
+        # twin only does the ANALYSIS. Fall back to the zone model if an older
+        # mission node sent no measurement.
+        camera_health = str(request.get("camera_health") or self.current_camera_health()).lower()
+        measured = request.get("measured_plant_stress", None)
+        if measured is None and camera_health != "failed":
+            measured = zone.plant_stress_index
+        self.mirrored_camera_health = camera_health
 
-        if camera_health == "failed":
+        if camera_health == "failed" or measured is None:
             status = "SENSOR_FAILED"
             plant_stress_index = None
             disease_level = None
             confidence = 0.0
         else:
-            plant_stress_index = zone.plant_stress_index
+            plant_stress_index = measured
             disease_level = plant_stress_index
             threshold = float(self.get_parameter("plant_stress_threshold").value)
             status = classify_plant_health(plant_stress_index, threshold)
@@ -234,7 +242,11 @@ class InspectionTwinNode(Node):
             "mirrored_zone_id": self.mirrored_state.get("current_zone_id"),
             "mirrored_zone_name": self.mirrored_state.get("current_zone_name"),
             "mirrored_pose": self.mirrored_state.get("pose"),
-            "camera_health": self.current_camera_health(),
+            # Mirror the robot camera's health continuously from the physical
+            # state (immediate), falling back to the last reading / local default.
+            "camera_health": (self.mirrored_state.get("digital_camera_health")
+                              or self.mirrored_camera_health
+                              or self.current_camera_health()),
             "digital_control_topic": self.digital_control_topic,
             "pending_inspections": len(self.pending_requests),
             "latest_result": self.latest_result(),

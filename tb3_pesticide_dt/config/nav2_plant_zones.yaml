@@ -27,13 +27,14 @@ plant_nav2_mission_node:
     # First six stops are inspected. plant_home is the hardcoded final
     # waypoint back to the start and is not inspected.
     zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_home"]
-    zone_names: ["North west plant", "North east plant", "Right-side plant", "Lower right plant", "Lower center plant", "Lower west plant", "Home / Start"]
-    # These are scan poses, not plant centers.  Each pose is about 0.55 m
-    # from the visual plant marker so the robot stops at a consistent distance.
-    zone_x: [-0.60, 0.90, 1.25, 1.05, 0.35, -0.75, -0.80]
-    zone_y: [0.35, 0.35, -0.30, -1.05, -1.85, -1.55, -0.07]
-    # Each yaw points the robot toward the nearby plant marker.
-    zone_yaw: [0.13, 0.13, 0.13, 0.13, 0.13, 0.13, 0.0]
+    zone_names: ["North west plant", "North east plant", "East middle plant", "South east plant", "South west plant", "West middle plant", "Home / Start"]
+    # Scan poses: nav2_map = gazebo_plant - (0.55, 0.07). Robot stops ~0.25 m
+    # from the visual marker (plants have no collision geometry).
+    zone_x: [-0.95, 1.35, 1.35, 1.35, -0.95, -0.95, -0.80]
+    zone_y: [0.48, 0.48, -1.47, -2.87, -2.87, -1.47, -0.07]
+    # Face the plant (it sits ~0.25 m due west of each scan pose) so the camera
+    # actually looks at it before capturing. plant_home faces the start heading.
+    zone_yaw: [3.14159, 3.14159, 3.14159, 3.14159, 3.14159, 3.14159, 0.0]
     zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.81, 0.44, 0.0]
     zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "TREATMENT_NEEDED", "OK", "RETURN_HOME"]
 
@@ -42,17 +43,19 @@ plant_nav2_mission_node:
     goal_timeout_s: 180.0
     # If Nav2 reaches the plant but refuses to report SUCCEEDED because of
     # final yaw/costmap jitter, accept the waypoint and start inspection.
-    accept_near_goal_distance_m: 0.12
-    accept_near_home_distance_m: 0.18
-    accept_near_goal_after_s: 6.0
-    goal_retry_delay_s: 5.0
+    # Wider radius + shorter hold so the robot stops "fidgeting" in front of
+    # the plant: as soon as it is within 0.22 m for 2 s, inspection starts.
+    accept_near_goal_distance_m: 0.22
+    accept_near_home_distance_m: 0.25
+    accept_near_goal_after_s: 2.0
+    goal_retry_delay_s: 3.0
     max_goal_retries: 8
     retry_fast_failure_window_s: 20.0
-    inspection_duration_s: 5.0
+    inspection_duration_s: 3.0
     inspection_result_timeout_s: 10.0
     treatment_alert_hold_s: 2.0
     summary_republish_period_s: 5.0
-    initial_pose_settle_s: 12.0
+    initial_pose_settle_s: 8.0
 
 inspection_twin_node:
   ros__parameters:
@@ -66,15 +69,15 @@ inspection_twin_node:
     digital_control_topic: /dt/digital/control
 
     zone_ids: ["plant_a", "plant_b", "plant_c", "plant_d", "plant_e", "plant_f", "plant_home"]
-    zone_names: ["North west plant", "North east plant", "Right-side plant", "Lower right plant", "Lower center plant", "Lower west plant", "Home / Start"]
-    zone_x: [-0.60, 0.90, 1.25, 1.05, 0.35, -0.75, -0.80]
-    zone_y: [0.35, 0.35, -0.30, -1.05, -1.85, -1.55, -0.07]
-    zone_yaw: [0.13, 0.13, 0.13, 0.13, 0.13, 0.13, 0.0]
+    zone_names: ["North west plant", "North east plant", "East middle plant", "South east plant", "South west plant", "West middle plant", "Home / Start"]
+    zone_x: [-0.95, 1.35, 1.35, 1.35, -0.95, -0.95, -0.80]
+    zone_y: [0.48, 0.48, -1.47, -2.87, -2.87, -1.47, -0.07]
+    zone_yaw: [3.14159, 3.14159, 3.14159, 3.14159, 3.14159, 3.14159, 0.0]
     zone_plant_stress_indices: [0.18, 0.74, 0.31, 0.56, 0.81, 0.44, 0.0]
     zone_expected_statuses: ["OK", "TREATMENT_NEEDED", "OK", "TREATMENT_NEEDED", "TREATMENT_NEEDED", "OK", "RETURN_HOME"]
 
     plant_stress_threshold: 0.50
-    processing_delay_s: 1.0
+    processing_delay_s: 2.5
     camera_health: healthy
     frame_id: map
 

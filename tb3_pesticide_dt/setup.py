@@ -43,6 +43,7 @@ setup(
             "evidence_recorder_node = tb3_pesticide_dt.evidence_recorder_node:main",
             "option_b_dashboard_node = tb3_pesticide_dt.option_b_dashboard_node:main",
             "option_b_dashboard_viewer = tb3_pesticide_dt.option_b_dashboard_viewer:main",
+            "option_b_dashboard_web = tb3_pesticide_dt.option_b_dashboard_web:main",
         ],
     },
 )

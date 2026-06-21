@@ -86,7 +86,8 @@ class PlantNav2MissionNode(Node):
         self._last_initial_pose_pub: Optional[float] = None
         self.summary = []
         self.final_status = "RUNNING"
-        self.digital_camera_health = "unknown"
+        # Health of the robot's own (simulated) inspection camera.
+        self.camera_health = str(self.get_parameter("camera_health").value).lower()
         self.digital_mode = "unknown"
         self.latest_feedback = {}
         self.last_state_publish_at = 0.0
@@ -100,6 +101,9 @@ class PlantNav2MissionNode(Node):
 
         self.create_subscription(String, self.result_topic, self.on_inspection_result, 10)
         self.create_subscription(String, self.digital_state_topic, self.on_digital_state, 10)
+        self.create_subscription(
+            String, str(self.get_parameter("digital_control_topic").value), self.on_camera_control, 10
+        )
         self.create_subscription(PoseWithCovarianceStamped, "/amcl_pose", self.on_amcl_pose, 10)
 
         self.pub_state = self.create_publisher(String, self.state_topic, 10)
@@ -122,6 +126,10 @@ class PlantNav2MissionNode(Node):
         self.declare_parameter("inspection_result_topic", "/dt/digital/inspection_result")
         self.declare_parameter("digital_state_topic", "/dt/digital/mission_state")
         self.declare_parameter("inspection_log_topic", "/dt/physical/inspection_log")
+        # The robot carries the (simulated) inspection camera. Operator fault
+        # commands arrive on this topic and change the camera's own health state.
+        self.declare_parameter("digital_control_topic", "/dt/digital/control")
+        self.declare_parameter("camera_health", "healthy")
 
         self.declare_parameter("zone_ids", DEFAULT_ZONE_IDS)
         self.declare_parameter("zone_names", DEFAULT_ZONE_NAMES)
@@ -197,8 +205,18 @@ class PlantNav2MissionNode(Node):
             data = json.loads(msg.data)
         except json.JSONDecodeError:
             return
-        self.digital_camera_health = str(data.get("camera_health", self.digital_camera_health))
         self.digital_mode = str(data.get("mode", self.digital_mode))
+
+    def on_camera_control(self, msg: String):
+        """Operator fault command -> the robot's camera changes its own health."""
+        try:
+            command = json.loads(msg.data)
+        except json.JSONDecodeError:
+            return
+        health = str(command.get("camera_health", command.get("set_camera_health", ""))).lower()
+        if health in {"healthy", "degraded", "failed"}:
+            self.camera_health = health
+            self.get_logger().warn(f"Camera fault command applied: camera_health={health}")
 
     def _capture_home_from_tf(self):
         """Look up where the odom origin sits in the map frame.
@@ -605,6 +623,10 @@ class PlantNav2MissionNode(Node):
         zone = self.zones[self.current_index]
         if not self.request_sent:
             self.request_id += 1
+            # The robot's camera captures the plant now. A failed camera returns no
+            # reading; otherwise it measures the plant's stress. The twin does the
+            # analysis from this reading -- it is the digital entity, not the sensor.
+            measured = None if self.camera_health == "failed" else zone.plant_stress_index
             payload = {
                 "event": "INSPECT_PLANT",
                 "request_id": self.request_id,
@@ -613,6 +635,8 @@ class PlantNav2MissionNode(Node):
                 "source_entity": str(self.get_parameter("source_entity").value),
                 "navigation": "nav2",
                 "simulated_sensor": "hyperspectral_camera",
+                "camera_health": self.camera_health,
+                "measured_plant_stress": measured,
                 "pose": {"x": zone.x, "y": zone.y, "yaw": zone.yaw},
                 "sent_at_monotonic_s": now,
             }
@@ -636,7 +660,7 @@ class PlantNav2MissionNode(Node):
                     "disease_level": None,
                     "recommendation": "RETRY_INSPECTION",
                     "confidence": 0.0,
-                    "camera_health": self.digital_camera_health,
+                    "camera_health": self.camera_health,
                 }
             )
 
@@ -653,7 +677,7 @@ class PlantNav2MissionNode(Node):
             "disease_level": result.get("disease_level", plant_stress),
             "recommendation": result.get("recommendation", recommendation_for_status(status)),
             "confidence": result.get("confidence"),
-            "camera_health": result.get("camera_health", self.digital_camera_health),
+            "camera_health": result.get("camera_health", self.camera_health),
             "mission_index": self.current_index,
             "navigation": "nav2",
         }
@@ -684,7 +708,7 @@ class PlantNav2MissionNode(Node):
             "disease_level": None,
             "recommendation": recommendation_for_status(status),
             "confidence": 0.0,
-            "camera_health": self.digital_camera_health,
+            "camera_health": self.camera_health,
             "mission_index": self.current_index,
             "navigation": "nav2",
             "reason": reason,
@@ -762,7 +786,7 @@ class PlantNav2MissionNode(Node):
             "zone_count": len(self.zones),
             "goal_in_flight": self.goal_in_flight,
             "nav_feedback": self.latest_feedback,
-            "digital_camera_health": self.digital_camera_health,
+            "digital_camera_health": self.camera_health,
             "digital_mode": self.digital_mode,
             "last_result": self.last_result,
             "completed_inspections": len(self.summary),

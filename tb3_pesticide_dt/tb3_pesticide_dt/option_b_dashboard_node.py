@@ -190,6 +190,9 @@ class OptionBDashboardNode(Node):
                 "nav_feedback": physical.get("nav_feedback"),
                 "completed_inspections": physical.get("completed_inspections"),
                 "final_status": physical.get("final_status"),
+                # Camera health set on the digital side, mirrored onto the physical
+                # mission_state -- the cross-entity reflection for the R2 demo.
+                "digital_camera_health": physical.get("digital_camera_health"),
             },
             "digital_twin": {
                 "mode": digital.get("mode"),
