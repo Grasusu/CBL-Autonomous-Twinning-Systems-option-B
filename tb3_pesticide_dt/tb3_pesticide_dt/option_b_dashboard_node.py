@@ -39,7 +39,6 @@ class OptionBDashboardNode(Node):
         self._subscribe("inspection_result", "inspection_result_topic")
         self._subscribe("inspection_log", "inspection_log_topic")
         self._subscribe("environment_state", "environment_state_topic")
-        self._subscribe("demo_evidence", "demo_evidence_topic")
 
         self.pub_dashboard = self.create_publisher(
             String,
@@ -61,7 +60,7 @@ class OptionBDashboardNode(Node):
         self.create_timer(period, self.tick)
         self.get_logger().info(
             "Option B digital control panel started. "
-            "Run `ros2 run tb3_pesticide_dt option_b_dashboard_viewer` for the readable dashboard."
+            "Run `ros2 run tb3_pesticide_dt option_b_dashboard_web` and open http://127.0.0.1:8080."
         )
 
     def _declare_parameters(self):
@@ -71,7 +70,6 @@ class OptionBDashboardNode(Node):
         self.declare_parameter("inspection_result_topic", "/dt/digital/inspection_result")
         self.declare_parameter("inspection_log_topic", "/dt/physical/inspection_log")
         self.declare_parameter("environment_state_topic", "/dt/physical/environment_state")
-        self.declare_parameter("demo_evidence_topic", "/dt/demo_evidence")
         self.declare_parameter("digital_control_topic", "/dt/digital/control")
         self.declare_parameter("dashboard_topic", "/dt/digital/dashboard")
         self.declare_parameter("dashboard_summary_topic", "/dt/digital/dashboard_summary")
@@ -171,7 +169,6 @@ class OptionBDashboardNode(Node):
         digital = self.latest.get("digital_state", {})
         inspection = self.latest.get("inspection_log", {})
         environment = self.latest.get("environment_state", {})
-        evidence = self.latest.get("demo_evidence", {})
 
         latest_result = digital.get("latest_result") or {}
         if inspection.get("event") in {"INSPECTION_LOG", "RETURN_HOME_LOG", "MISSION_SUMMARY"}:
@@ -215,7 +212,6 @@ class OptionBDashboardNode(Node):
                 "final_status": latest_log.get("final_status"),
             },
             "inspection_history": list(self.inspection_history),
-            "rubric_ready": evidence.get("rubric_ready", {}),
             "message_counts": dict(self.counts),
             "last_control_command": self.last_control_command,
             "operator_topics": {
@@ -235,25 +231,15 @@ class OptionBDashboardNode(Node):
             return "-"
         return str(status)
 
-    @staticmethod
-    def ready_flag(value) -> str:
-        return "OK" if bool(value) else "WAIT"
-
     def build_dashboard_summary(self, payload: Dict) -> str:
         physical = payload["physical_standin"]
         digital = payload["digital_twin"]
         env = payload["environment"]
-        rubric = payload["rubric_ready"]
         history = payload.get("inspection_history", [])
         plant_history = [item for item in history if item.get("zone_id") != "plant_home"]
         last = plant_history[-1] if plant_history else {}
         nav = physical.get("nav_feedback") or {}
 
-        rubric_text = (
-            f"B={self.ready_flag(rubric.get('bidirectional_pubsub'))} "
-            f"S={self.ready_flag(rubric.get('state_synchronization'))} "
-            f"E={self.ready_flag(rubric.get('environmental_interaction'))}"
-        )
         return (
             "SMARTLE "
             f"mode={physical.get('mode') or '-'} "
@@ -266,8 +252,7 @@ class OptionBDashboardNode(Node):
             f"camera={digital.get('camera_health') or '-'} "
             f"env={env.get('mode') or '-'} "
             f"front={env.get('min_front_m', '-')}m "
-            f"nav_left={nav.get('distance_remaining', '-')}m "
-            f"rubric[{rubric_text}]"
+            f"nav_left={nav.get('distance_remaining', '-')}m"
         )
 
     def log_dashboard(self, payload: Dict):
@@ -279,21 +264,14 @@ class OptionBDashboardNode(Node):
         physical = payload["physical_standin"]
         digital = payload["digital_twin"]
         env = payload["environment"]
-        rubric = payload["rubric_ready"]
         history = payload.get("inspection_history", [])
         last = history[-1] if history else {}
-        rubric_text = (
-            f"B={bool(rubric.get('bidirectional_pubsub'))} "
-            f"S={bool(rubric.get('state_synchronization'))} "
-            f"E={bool(rubric.get('environmental_interaction'))}"
-        )
         self.get_logger().info(
             "Dashboard | "
             f"mode={physical.get('mode')} zone={physical.get('zone')} "
             f"inspections={len([item for item in history if item.get('zone_id') != 'plant_home'])}/6 "
             f"last={last.get('zone_id')}:{last.get('status')} "
-            f"camera={digital.get('camera_health')} env={env.get('mode')} "
-            f"rubric={rubric_text}"
+            f"camera={digital.get('camera_health')} env={env.get('mode')}"
         )
 
 

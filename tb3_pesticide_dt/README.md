@@ -6,13 +6,11 @@ The official final demo does not use a second visual robot. Gazebo provides one 
 
 ```text
 option_b_dashboard_node  -> /dt/digital/dashboard, /dt/digital/dashboard_summary, and /dt/digital/control
-option_b_dashboard_viewer -> readable terminal dashboard for the demo
+option_b_dashboard_web   -> browser dashboard at http://127.0.0.1:8080
 inspection_twin_node     -> /dt/digital/mission_state and /dt/digital/inspection_result
-demo_evidence_node       -> /dt/demo_evidence rubric summary
-evidence_recorder_node   -> /dt/evidence_recording and JSONL proof file
 ```
 
-The main runbook is the repository root `README.md`.
+See the repository root `README.md` for the full demo workflow.
 
 ## Main Nodes
 
@@ -20,9 +18,7 @@ The main runbook is the repository root `README.md`.
 - `inspection_twin_node`: mirrors physical state and simulates hyperspectral plant stress/disease inspection.
 - `option_b_environment_node`: converts `/scan` into `/dt/physical/environment_state`.
 - `option_b_dashboard_node`: ROS-native digital control panel; publishes full and one-line dashboard state, and sends a camera-health command on `/dt/digital/control`.
-- `option_b_dashboard_viewer`: subscribes to `/dt/digital/dashboard` and prints a compact readable live dashboard.
-- `demo_evidence_node`: aggregates bidirectional communication, state synchronization, and environmental interaction evidence.
-- `evidence_recorder_node`: records proof topics to `/tmp/tb3_option_b_demo_evidence.jsonl`.
+- `option_b_dashboard_web`: serves a browser dashboard (http://127.0.0.1:8080) that mirrors state and drives the demo (fault injection, obstacle, topic echoes).
 
 ## Final Launches
 
@@ -32,7 +28,7 @@ Preferred full demo:
 ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
 ```
 
-This starts Gazebo, Nav2, initial localization, the plant mission, the digital dashboard/control node, and evidence recording. It waits about one minute before movement so AMCL/Nav2 are stable.
+This starts Gazebo, Nav2, initial localization, the plant mission, and the digital dashboard/control node. It waits about one minute before movement so AMCL/Nav2 are stable.
 
 Manual world:
 
@@ -57,23 +53,16 @@ ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
   use_sim_time:=true
 ```
 
-Dashboard:
+Dashboard (then open http://127.0.0.1:8080 in a browser):
 
 ```bash
-ros2 run tb3_pesticide_dt option_b_dashboard_viewer
+ros2 run tb3_pesticide_dt option_b_dashboard_web
 ```
 
-One-line dashboard evidence:
+One-line dashboard summary:
 
 ```bash
 ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
-```
-
-Evidence:
-
-```bash
-ros2 topic echo /dt/evidence_recording std_msgs/msg/String --full-length
-ros2 topic echo /dt/demo_evidence std_msgs/msg/String --full-length
 ```
 
 ## Rubric Proof
@@ -84,7 +73,7 @@ ros2 topic echo /dt/demo_evidence std_msgs/msg/String --full-length
 - State synchronization:
   mission mode, zone, pose, camera health, latest inspection, and final status are mirrored.
 - Environmental interaction:
-  `/scan` changes are converted to `/dt/physical/environment_state` and reflected in digital dashboard/evidence.
+  `/scan` changes are converted to `/dt/physical/environment_state` and reflected in the digital dashboard.
 
 Expected final log:
 

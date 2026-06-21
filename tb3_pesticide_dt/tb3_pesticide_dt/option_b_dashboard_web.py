@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
 """Browser dashboard for the Option B digital twin.
 
-This is a drop-in *web* equivalent of ``option_b_dashboard_viewer``: it is a ROS
-node that subscribes to the very same ``/dt/digital/dashboard`` JSON topic, but
-instead of printing ANSI text to a terminal it serves a single self-contained
-HTML page and streams live updates to the browser via Server-Sent Events (SSE).
+A ROS node that subscribes to the consolidated ``/dt/digital/dashboard`` JSON
+topic and serves a single self-contained HTML page, streaming live updates to
+the browser via Server-Sent Events (SSE).
 
-The terminal viewer is left completely untouched -- run whichever you like, or
-both at once (they are independent subscribers of the same topic).
-
-On top of *viewing*, the page also drives every demo action that the runbook
-otherwise runs in a terminal, so the whole presentation can be given from the
-browser alone:
+On top of *viewing*, the page also drives the demo actions, so the whole
+presentation can be given from the browser alone:
 
   * Rubric 1/2  -- inject a camera fault          -> /dt/digital/control (operator
                    command picked up by the robot's camera; the twin mirrors the health)
-  * Rubric 1    -- inject a fake inspection req  -> publishes /dt/physical/inspection_request
-                   and then shows the twin's actual reply, correlated by request_id
-  * Rubric 1    -- show node wiring / topic echo -> ros2 node info + cached topic msgs
-  * Rubric 3    -- drop / remove an obstacle     -> gz service create / remove at a
-                   fixed gazebo-world coordinate (the map<->gazebo frame offset makes
-                   odom-relative aiming unreliable, so we use the known-good spot)
+  * Rubric 1    -- show node wiring / topic echo  -> ros2 node info + cached topic msgs
+  * Rubric 3    -- drop / remove an obstacle      -> gz service create / remove at a
+                   fixed gazebo-world coordinate on the plant_d -> plant_e leg
 
 Only the Python standard library is used for the web side (``http.server`` +
 SSE), so there are no extra pip/apt dependencies. The obstacle and wiring buttons

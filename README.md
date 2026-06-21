@@ -7,12 +7,10 @@ This is the official Option B implementation: there is no physical TurtleBot3. A
 ## What The Demo Shows
 
 - The Gazebo TurtleBot3 autonomously navigates through 6 plant inspection zones with Nav2.
-- A digital control panel publishes `/dt/digital/dashboard`, sends control commands on `/dt/digital/control`, and can be viewed with a readable terminal dashboard.
-- The robot stops beside each plant, faces it, waits 7 seconds, and simulates hyperspectral plant stress/disease inspection.
+- A digital control panel publishes `/dt/digital/dashboard`, sends control commands on `/dt/digital/control`, and is viewed through a browser dashboard.
+- The robot stops beside each plant, faces it, and the on-board (simulated) camera captures a hyperspectral plant stress/disease reading that the twin analyses.
 - The digital twin returns `OK` or `TREATMENT_NEEDED`; treatment-needed plants recommend `APPLY_PESTICIDE`.
 - Gazebo `/scan` is converted into `/dt/physical/environment_state` and mirrored into `/dt/digital/mission_state`.
-- `/dt/demo_evidence` and `/dt/evidence_recording` provide live proof for the rubric.
-- Raw proof messages are saved to `/tmp/tb3_option_b_demo_evidence.jsonl`.
 
 ## Rubric Mapping
 
@@ -74,7 +72,7 @@ The stand-in robot uses Gazebo LIDAR for Nav2 planning. The same `/scan` stream 
 ```text
 CBL-Option-B-Digital-Twin/
   my_tb3_world/          Gazebo world with the arena and visual plant markers
-  tb3_pesticide_dt/      ROS 2 package with mission, twin, evidence, maps, launch files
+  tb3_pesticide_dt/      ROS 2 package with mission, twin, dashboard, maps, launch files
 ```
 
 Important files:
@@ -83,7 +81,7 @@ Important files:
 tb3_pesticide_dt/config/nav2_plant_zones.yaml       plant route and inspection settings
 tb3_pesticide_dt/config/nav2_burger_option_b.yaml   Nav2 params tuned for Gazebo Option B
 tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_node.py
-tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_viewer.py
+tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_web.py
 tb3_pesticide_dt/launch/pesticide_world.launch.py
 tb3_pesticide_dt/launch/option_b_navigation2.launch.py
 tb3_pesticide_dt/launch/pesticide_nav2_dt.launch.py
@@ -107,6 +105,7 @@ docker rm -f turtlebot3_container 2>/dev/null || true
 
 docker run --rm -it \
   -p 5901:5901 \
+  -p 8080:8080 \
   -v "$HOME/option_b_ws:/ws" \
   --name turtlebot3_container \
   turtlebot3_ws_vnc
@@ -145,7 +144,7 @@ export DISPLAY=:1
 
 ## Final Demo Commands
 
-Recommended demo flow: one launch terminal for the full robot mission, one dashboard terminal, and optionally one evidence terminal. In every Docker terminal, start with:
+Recommended demo flow: one launch terminal for the full robot mission and one dashboard terminal. In every Docker terminal, start with:
 
 ```bash
 cd /ws
@@ -162,7 +161,7 @@ export DISPLAY=:1
 ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
 ```
 
-This starts Gazebo, Nav2, the AMCL initial pose publisher, the plant mission, the digital dashboard/control node, and the evidence recorder. The launch intentionally waits about one minute before the robot moves so Nav2 and localization are stable before the first goal.
+This starts Gazebo, Nav2, the AMCL initial pose publisher, the plant mission, and the digital dashboard/control node. The launch intentionally waits about one minute before the robot moves so Nav2 and localization are stable before the first goal.
 
 Expected route:
 
@@ -172,25 +171,20 @@ plant_a -> plant_b -> plant_c -> plant_d -> plant_e -> plant_f -> plant_home
 
 The plants are small visual markers. The robot stops at scan poses about 0.55 m from each marker, waits for inspection, logs the plant health result, then continues.
 
-### Terminal 2: Readable Dashboard
+### Terminal 2: Browser Dashboard
 
 ```bash
-ros2 run tb3_pesticide_dt option_b_dashboard_viewer
+ros2 run tb3_pesticide_dt option_b_dashboard_web
 ```
 
-This viewer subscribes to `/dt/digital/dashboard` and shows only the important demo information: current mode, active plant, latest plant-health result, inspection history, environment state, and rubric flags.
+Then open `http://127.0.0.1:8080` in a browser on the host. It subscribes to `/dt/digital/dashboard` and shows the important demo information (current mode, active plant, the robot's camera health, latest plant-health result, inspection history, environment state) and can drive the demo: inject a camera fault, drop/remove an obstacle, echo topics, and show node wiring.
 
-### Terminal 3: Evidence To Show The TA
+### Optional Terminal 3: Topic Echoes
 
-```bash
-ros2 topic echo /dt/evidence_recording std_msgs/msg/String --full-length
-```
-
-Useful extra evidence commands:
+The browser dashboard already exposes these live, but you can also echo them directly:
 
 ```bash
 ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
-ros2 topic echo /dt/demo_evidence std_msgs/msg/String --full-length
 ros2 topic echo /dt/physical/inspection_log std_msgs/msg/String --full-length
 ros2 topic echo /dt/physical/environment_state std_msgs/msg/String --full-length
 ros2 topic echo /dt/digital/mission_state std_msgs/msg/String --full-length
@@ -227,45 +221,13 @@ ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
   use_sim_time:=true
 ```
 
-After the route:
-
-```bash
-tail -n 80 /tmp/tb3_option_b_demo_evidence.jsonl
-```
-
 ## What To Point Out In The Presentation
 
-Show `/dt/evidence_recording` and point out that message counts increase for:
+Open the browser dashboard (`http://127.0.0.1:8080`) and walk through the three rubric items:
 
-```text
-physical_mission_state
-physical_inspection_request
-physical_environment_state
-digital_mission_state
-digital_inspection_result
-digital_dashboard
-physical_inspection_log
-demo_evidence
-```
-
-`digital_control` appears because the digital dashboard publishes the initial camera-health command. It also changes again if you run the optional fault injection command.
-
-Show `/dt/demo_evidence` and point out:
-
-```text
-rubric_ready.bidirectional_pubsub
-rubric_ready.state_synchronization
-rubric_ready.environmental_interaction
-bidirectional_pubsub.message_counts
-message_counts.digital_control
-message_counts.digital_dashboard
-state_synchronization.mirrored_pose
-environmental_interaction.min_front_m
-environmental_interaction.environment_change_seen
-environmental_interaction.front_obstacle_seen
-latest_inspection.status
-latest_inspection.recommendation
-```
+- Bidirectional pub/sub: the robot's camera sends its reading (`/dt/physical/inspection_request`) and the twin returns its analysis (`/dt/digital/inspection_result`). Use *Show node wiring* and *Echo request* / *Echo result*.
+- State synchronization: the physical and digital cards mirror mission mode and the robot's camera health. *Inject fault: degraded* flips the camera state on both sides and lowers the next plant's confidence.
+- Environmental interaction: *Drop obstacle on route* spawns a box that is not in the map; the robot's LIDAR detects it, the environment card flips to `OBSTACLE_AHEAD`, and Nav2 reroutes around it.
 
 Expected mission behavior:
 

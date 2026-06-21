@@ -1803,7 +1803,7 @@
 
     <!-- The Rubric 3 demo obstacle is NOT baked into the world anymore: the robot
          drives the plant_d -> plant_e leg cleanly until you spawn it on demand from
-         the web dashboard ("Drop obstacle on route") or demo_evidence.sh. -->
+         the web dashboard ("Drop obstacle on route"). -->
 
 
     <light name='sun' type='directional'>
