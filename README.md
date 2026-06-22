@@ -1,18 +1,203 @@
-# CBL Option B Digital Twin
+# SMARTLE Option B Digital Twin
 
-Final simulation-only TurtleBot3 digital twin demo for the 2IRR10 course.
+Simulation-only TurtleBot3 digital twin proof of concept for the 2IRR10 final demo.
 
-This is the official Option B implementation: there is no physical TurtleBot3. A Gazebo TurtleBot3 acts as the physical stand-in/source of truth, while a ROS 2 digital control panel plus digital twin nodes mirror state, inspect plant zones, publish plant-health results, and record rubric evidence.
+This repo is the official **Option B** implementation. There is no physical TurtleBot3 in the demo. A Gazebo TurtleBot3 acts as the physical stand-in/source of truth, while ROS 2 digital twin nodes and a browser dashboard mirror state, analyze simulated plant-health readings, and expose the topic evidence for the rubric.
+
+**Demo video:** `CBL_Group17_Demo.mp4` (included in this folder) — the 2–3 minute recording of the three required digital-twin usages.
+
+This is a simulation-only Option B implementation, so there is no lab laptop or physical robot account: everything runs in Docker.
 
 ## What The Demo Shows
 
 - The Gazebo TurtleBot3 autonomously navigates through 6 plant inspection zones with Nav2.
-- A digital control panel publishes `/dt/digital/dashboard`, sends control commands on `/dt/digital/control`, and is viewed through a browser dashboard.
-- The robot stops beside each plant, faces it, and the on-board (simulated) camera captures a hyperspectral plant stress/disease reading that the twin analyses.
-- The digital twin returns `OK` or `TREATMENT_NEEDED`; treatment-needed plants recommend `APPLY_PESTICIDE`.
-- Gazebo `/scan` is converted into `/dt/physical/environment_state` and mirrored into `/dt/digital/mission_state`.
+- The digital entity mirrors mission mode, active plant, pose feedback, camera health, latest inspection, and environment state.
+- The robot stops beside each plant and simulates a hyperspectral plant stress/disease inspection.
+- The twin returns `OK` or `TREATMENT_NEEDED`; treatment-needed plants recommend `APPLY_PESTICIDE`.
+- Gazebo `/scan` is converted into `/dt/physical/environment_state`, so obstacle/environment changes are visible in the digital twin dashboard.
 
-## Rubric Mapping
+## Repository Layout
+
+```text
+CBL-Option-B-Digital-Twin/
+  Dockerfile                    ROS 2 Jazzy + TurtleBot3 image (incl. Nav2 ABI fix)
+  docker-compose.yml            Cross-platform container setup (VNC GUI path)
+  docker-compose.override.yml   Windows/WSL2 only: native GUI via WSLg, no VNC
+  docker/                       Small helper scripts inside the container
+  my_tb3_world/                 Gazebo arena/world package
+  tb3_pesticide_dt/             Mission, Nav2, twin, dashboard, maps, launch files
+```
+
+Important launch files:
+
+```text
+tb3_pesticide_dt/launch/option_b_full_demo.launch.py    full final demo
+tb3_pesticide_dt/launch/pesticide_world.launch.py       Gazebo world only
+tb3_pesticide_dt/launch/option_b_navigation2.launch.py  Nav2 only
+tb3_pesticide_dt/launch/pesticide_nav2_dt.launch.py     twin/mission nodes only
+```
+
+## Cross-Platform Docker Setup
+
+The Docker setup is designed to work on:
+
+- Windows with Docker Desktop and WSL 2
+- Linux with Docker Engine
+- macOS with Docker Desktop or Colima
+
+There are two ways to see the Gazebo/RViz GUI:
+
+- **Windows + WSL2 (recommended here): native windows via WSLg, no VNC.** The bundled
+  `docker-compose.override.yml` (auto-loaded by Compose) binds the WSLg X11 socket so
+  Gazebo opens directly on your Windows desktop. Every GUI launch must be prefixed with
+  `export DISPLAY=:0` (shown in the commands below).
+- **macOS / Linux: VNC.** Remove the override (it is WSL2-only — see *Running on macOS*),
+  bring the container up, and view Gazebo through a VNC viewer at `127.0.0.1:5901`
+  (password `ros`).
+
+The browser dashboard is served at `http://127.0.0.1:8080` on every platform and needs
+no GUI at all — it is the main surface for the demo.
+
+The Compose file uses the `linux/amd64` image platform because the ROS/Gazebo desktop stack is most reliable there. On normal Windows/Linux lab laptops this is native; on Apple Silicon macOS it runs through Docker/Colima emulation.
+
+### 1. Clone The Repo
+
+Windows/WSL or Linux:
+
+```bash
+git clone https://github.com/Grasusu/CBL-Autonomous-Twinning-Systems-option-B.git
+cd CBL-Autonomous-Twinning-Systems-option-B
+```
+
+macOS with Colima:
+
+```bash
+colima start --cpu 4 --memory 8 --runtime docker
+docker context use colima
+
+git clone https://github.com/Grasusu/CBL-Autonomous-Twinning-Systems-option-B.git
+cd CBL-Autonomous-Twinning-Systems-option-B
+```
+
+If you are on Windows, the most reliable workflow is to clone inside WSL, not inside `C:\Users\...`, because Linux file mounts are faster and avoid path-sharing issues.
+
+### 2. Build And Start The Container
+
+From the repo root:
+
+```bash
+docker compose up --build -d
+```
+
+This builds the image `cbl-option-b:jazzy`, starts a container named
+`turtlebot3_container`, and mounts the repo at:
+
+```text
+/ws/src/cbl_option_b
+```
+
+> **Nav2 fix (automatic).** The image upgrades `ros-jazzy-diagnostic-updater` during
+> build. Without it the newer Nav2 packages fail to load with
+> `undefined symbol: ...diagnostic_updater::Updater...`, `nav2_lifecycle_manager` dies,
+> and the robot never navigates. Nothing to do — it is baked into the Dockerfile.
+>
+> **GUI.** On Windows/WSL2 the bundled `docker-compose.override.yml` renders Gazebo
+> natively via WSLg and disables the internal VNC server. On macOS/Linux remove that
+> override to fall back to VNC (see *Running on macOS*).
+
+### 3. See The GUI
+
+**Windows + WSL2 (WSLg, no VNC):** nothing to open. The `docker-compose.override.yml`
+in this folder binds the WSLg X11 socket, so Gazebo opens as a normal window on your
+Windows desktop when you start the demo (Terminal 1 below). Every GUI launch must be
+prefixed with `export DISPLAY=:0` so it targets WSLg instead of the disabled internal
+display.
+
+**macOS / Linux (VNC):** delete or rename `docker-compose.override.yml` first (it is
+WSL2-only), bring the container up, then connect a VNC viewer to:
+
+```text
+127.0.0.1:5901      password: ros
+```
+
+You will see a small Linux desktop; Gazebo opens there when the demo starts. On this
+path do **not** add `export DISPLAY=:0` — the container's default `:1` is the VNC screen.
+
+### 4. Build The ROS Workspace
+
+Run this from a normal host terminal in the repo root:
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install'
+```
+
+Quick package check:
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 pkg list | grep -E "my_tb3_world|tb3_pesticide_dt"'
+```
+
+Expected output includes:
+
+```text
+my_tb3_world
+tb3_pesticide_dt
+```
+
+## Final Demo Commands
+
+Use two terminals on the host.
+
+### Terminal 1: Full Robot Mission
+
+Windows + WSL2 (native GUI via WSLg — note the `export DISPLAY=:0`):
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'export DISPLAY=:0; cd /ws && ros-env ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true'
+```
+
+macOS / Linux (VNC — no `export DISPLAY=:0`):
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true'
+```
+
+This starts Gazebo, Nav2, AMCL initial pose publishing, the plant mission, and the digital twin nodes. The launch intentionally waits before the robot starts moving so localization and Nav2 are stable. With software OpenGL the Gazebo window may be gray for ~30–60 s before the arena renders — that is normal; wait, and start only one launch at a time.
+
+Expected route:
+
+```text
+plant_a -> plant_b -> plant_c -> plant_d -> plant_e -> plant_f -> plant_home
+```
+
+### Terminal 2: Browser Dashboard
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 run tb3_pesticide_dt option_b_dashboard_web'
+```
+
+Open this on the host:
+
+```text
+http://127.0.0.1:8080
+```
+
+The dashboard shows:
+
+- physical stand-in state
+- digital twin mirrored state
+- plant inspection history
+- camera health
+- environment/obstacle state
+- buttons for fault injection and obstacle interaction
+- topic evidence for the rubric
+
+## What To Point Out In The Presentation
 
 ### 1. Bidirectional Pub/Sub
 
@@ -34,202 +219,47 @@ Digital side to physical stand-in:
 /dt/digital/dashboard_summary
 ```
 
-The mission node consumes digital inspection results before moving to the next plant, so the route is not just a one-way animation. The dashboard also publishes an initial camera-health command on `/dt/digital/control`, proving that the digital entity can affect the twin state.
+In the dashboard, use:
+
+- `Echo request` for physical to digital
+- `Echo result` for digital to physical
+- `Show node wiring` for the node/topic view
 
 ### 2. State Synchronization
 
-Mirrored state includes:
+The dashboard mirrors:
 
 ```text
 mission mode
 active plant zone
-AMCL/map pose
+pose/navigation feedback
 camera health
 latest inspection result
 environment state
 ```
 
-Optional fault injection:
+Use the dashboard buttons:
 
-```bash
-ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
-  "{data: '{\"camera_health\":\"degraded\"}'}"
+```text
+Inject fault: degraded
+Inject fault: failed
+Restore: healthy
 ```
 
-Reset:
-
-```bash
-ros2 topic pub --once /dt/digital/control std_msgs/msg/String \
-  "{data: '{\"camera_health\":\"healthy\"}'}"
-```
+This proves that internal state, not only motion, is synchronized.
 
 ### 3. Environmental Interaction
 
-The stand-in robot uses Gazebo LIDAR for Nav2 planning. The same `/scan` stream is converted into `/dt/physical/environment_state`, then mirrored by the digital twin. During the route, `min_front_m`, `front_obstacle`, and `environment_mode` change as the robot approaches walls and arena obstacles. The plant models are visual inspection targets, so they make the concept clear without trapping Nav2 in decorative collision geometry.
-
-## Repository Layout
+Use:
 
 ```text
-CBL-Option-B-Digital-Twin/
-  my_tb3_world/          Gazebo world with the arena and visual plant markers
-  tb3_pesticide_dt/      ROS 2 package with mission, twin, dashboard, maps, launch files
+Drop obstacle on route
+Remove obstacle
 ```
 
-Important files:
+The obstacle is spawned in Gazebo, detected through LIDAR/Nav2, and mirrored in `/dt/physical/environment_state` and the browser dashboard.
 
-```text
-tb3_pesticide_dt/config/nav2_plant_zones.yaml       plant route and inspection settings
-tb3_pesticide_dt/config/nav2_burger_option_b.yaml   Nav2 params tuned for Gazebo Option B
-tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_node.py
-tb3_pesticide_dt/tb3_pesticide_dt/option_b_dashboard_web.py
-tb3_pesticide_dt/launch/pesticide_world.launch.py
-tb3_pesticide_dt/launch/option_b_navigation2.launch.py
-tb3_pesticide_dt/launch/pesticide_nav2_dt.launch.py
-```
-
-## Setup In Docker
-
-From a Mac terminal:
-
-```bash
-colima start --cpu 4 --memory 8 --runtime docker
-docker context use colima
-
-mkdir -p "$HOME/option_b_ws/src"
-
-rsync -a --delete \
-  "$HOME/CBL-Option-B-Digital-Twin/" \
-  "$HOME/option_b_ws/src/cbl_option_b/"
-
-docker rm -f turtlebot3_container 2>/dev/null || true
-
-docker run --rm -it \
-  -p 5901:5901 \
-  -p 8080:8080 \
-  -v "$HOME/option_b_ws:/ws" \
-  --name turtlebot3_container \
-  turtlebot3_ws_vnc
-```
-
-Leave that terminal open.
-
-In a second Mac terminal, start VNC:
-
-```bash
-docker exec turtlebot3_container bash -lc \
-'rm -f /tmp/.X1-lock /tmp/.X11-unix/X1; vncserver -kill :1 2>/dev/null || true; vncserver :1 -geometry 1280x800 -depth 24 -localhost no -rfbport 5901'
-```
-
-Open VNC at `127.0.0.1:5901`, password `ros`.
-
-## Build
-
-Open a Docker terminal:
-
-```bash
-docker exec -it turtlebot3_container bash
-```
-
-Inside Docker:
-
-```bash
-cd /ws
-source /opt/ros/jazzy/setup.bash
-source /opt/turtlebot3_ws/install/setup.bash
-colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
-source install/setup.bash
-export TURTLEBOT3_MODEL=burger
-export DISPLAY=:1
-```
-
-## Final Demo Commands
-
-Recommended demo flow: one launch terminal for the full robot mission and one dashboard terminal. In every Docker terminal, start with:
-
-```bash
-cd /ws
-source /opt/ros/jazzy/setup.bash
-source /opt/turtlebot3_ws/install/setup.bash
-source install/setup.bash
-export TURTLEBOT3_MODEL=burger
-export DISPLAY=:1
-```
-
-### Terminal 1: Full Robot Mission
-
-```bash
-ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
-```
-
-This starts Gazebo, Nav2, the AMCL initial pose publisher, the plant mission, and the digital dashboard/control node. The launch intentionally waits about one minute before the robot moves so Nav2 and localization are stable before the first goal.
-
-Expected route:
-
-```text
-plant_a -> plant_b -> plant_c -> plant_d -> plant_e -> plant_f -> plant_home
-```
-
-The plants are small visual markers. The robot stops at scan poses about 0.55 m from each marker, waits for inspection, logs the plant health result, then continues.
-
-### Terminal 2: Browser Dashboard
-
-```bash
-ros2 run tb3_pesticide_dt option_b_dashboard_web
-```
-
-Then open `http://127.0.0.1:8080` in a browser on the host. It subscribes to `/dt/digital/dashboard` and shows the important demo information (current mode, active plant, the robot's camera health, latest plant-health result, inspection history, environment state) and can drive the demo: inject a camera fault, drop/remove an obstacle, echo topics, and show node wiring.
-
-### Optional Terminal 3: Topic Echoes
-
-The browser dashboard already exposes these live, but you can also echo them directly:
-
-```bash
-ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length
-ros2 topic echo /dt/physical/inspection_log std_msgs/msg/String --full-length
-ros2 topic echo /dt/physical/environment_state std_msgs/msg/String --full-length
-ros2 topic echo /dt/digital/mission_state std_msgs/msg/String --full-length
-ros2 topic echo /dt/digital/control std_msgs/msg/String --full-length
-```
-
-### Manual Fallback
-
-Use this only if you want to debug each subsystem separately.
-
-```bash
-ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true
-```
-
-```bash
-ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
-  use_sim_time:=true \
-  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml \
-  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml
-```
-
-```bash
-ros2 run tb3_pesticide_dt nav2_initial_pose_node --ros-args \
-  -p use_sim_time:=true \
-  -p x:=-0.80 \
-  -p y:=-0.07 \
-  -p yaw:=0.0 \
-  -p duration_s:=14.0
-```
-
-```bash
-ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
-  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_plant_zones.yaml \
-  use_sim_time:=true
-```
-
-## What To Point Out In The Presentation
-
-Open the browser dashboard (`http://127.0.0.1:8080`) and walk through the three rubric items:
-
-- Bidirectional pub/sub: the robot's camera sends its reading (`/dt/physical/inspection_request`) and the twin returns its analysis (`/dt/digital/inspection_result`). Use *Show node wiring* and *Echo request* / *Echo result*.
-- State synchronization: the physical and digital cards mirror mission mode and the robot's camera health. *Inject fault: degraded* flips the camera state on both sides and lowers the next plant's confidence.
-- Environmental interaction: *Drop obstacle on route* spawns a box that is not in the map; the robot's LIDAR detects it, the environment card flips to `OBSTACLE_AHEAD`, and Nav2 reroutes around it.
-
-Expected mission behavior:
+## Expected Inspection Results
 
 ```text
 plant_a -> OK
@@ -241,56 +271,167 @@ plant_f -> OK
 plant_home -> RETURNED_HOME
 ```
 
-## Optional One-Terminal Demo
+## Optional Topic Echoes
 
-This is convenient for a quick screen recording, but the multi-terminal flow above is safer for debugging.
+The browser dashboard already exposes these, but you can echo them manually:
 
 ```bash
-cd /ws
-source /opt/ros/jazzy/setup.bash
-source /opt/turtlebot3_ws/install/setup.bash
-source install/setup.bash
-export TURTLEBOT3_MODEL=burger
-export DISPLAY=:1
-
-ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=true
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 topic echo /dt/digital/dashboard_summary std_msgs/msg/String --full-length'
 ```
 
-This starts only the main Gazebo robot. The digital entity is the ROS dashboard/control panel, not a second visual robot.
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 topic echo /dt/physical/inspection_log std_msgs/msg/String --full-length'
+```
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 topic echo /dt/physical/environment_state std_msgs/msg/String --full-length'
+```
+
+## Manual Debug Flow
+
+Use this only if the full launch needs debugging.
+
+Terminal 1: Gazebo only
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 launch tb3_pesticide_dt pesticide_world.launch.py gui:=true'
+```
+
+Terminal 2: Nav2 only
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py \
+  use_sim_time:=true \
+  map:=/ws/src/cbl_option_b/tb3_pesticide_dt/maps/map.yaml \
+  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_burger_option_b.yaml'
+```
+
+Terminal 3: Initial pose
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 run tb3_pesticide_dt nav2_initial_pose_node --ros-args \
+  -p use_sim_time:=true \
+  -p x:=-0.80 \
+  -p y:=-0.07 \
+  -p yaw:=0.0 \
+  -p duration_s:=14.0'
+```
+
+Terminal 4: Mission/twin nodes
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 launch tb3_pesticide_dt pesticide_nav2_dt.launch.py \
+  params_file:=/ws/src/cbl_option_b/tb3_pesticide_dt/config/nav2_plant_zones.yaml \
+  use_sim_time:=true'
+```
+
+## Stop Everything
+
+From the repo root:
+
+```bash
+docker compose down
+```
+
+> `down` removes the container, so the next `docker compose up -d` needs the ROS
+> workspace rebuilt again (step 4). To keep the build between sessions, use
+> `docker compose stop` / `docker compose start` instead of `down`.
+
+On macOS/Colima, optionally stop Colima too:
+
+```bash
+colima stop
+```
+
+## Running On macOS / Linux
+
+The `docker-compose.override.yml` shipped here is **Windows/WSL2 only** — it points the
+GUI at WSLg, which does not exist on macOS or plain Linux. On those hosts:
+
+1. Remove (or rename) the override so Compose uses only the base file and its VNC server:
+
+   ```bash
+   rm docker-compose.override.yml        # or: mv docker-compose.override.yml off.yml.bak
+   ```
+
+2. Build and start as usual (`docker compose up --build -d`), then view Gazebo through a
+   VNC viewer at `127.0.0.1:5901` (password `ros`).
+
+3. Use the **VNC** form of the Terminal 1 command (without `export DISPLAY=:0`).
+
+Everything else — the Nav2 fix, the workspace build, the mission, and the
+`http://127.0.0.1:8080` dashboard — is identical across platforms. On Apple Silicon the
+`linux/amd64` image runs under emulation, so expect a slower build and simulation.
 
 ## Troubleshooting
 
-If `Package tb3_pesticide_dt not found`, rebuild and source:
+If `Package tb3_pesticide_dt not found`, rebuild:
 
 ```bash
-cd /ws
-source /opt/ros/jazzy/setup.bash
-source /opt/turtlebot3_ws/install/setup.bash
-colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
-source install/setup.bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install'
 ```
 
-If Nav2 prints collision monitor timestamp warnings, make sure Terminal 3 uses:
+If VNC does not connect:
 
 ```bash
-ros2 launch tb3_pesticide_dt option_b_navigation2.launch.py ...
+docker exec -it turtlebot3_container start-vnc
 ```
 
-Do not use the default `turtlebot3_navigation2 navigation2.launch.py` for the final Option B demo.
-
-If Docker says the container does not exist, recreate it with the setup command above. `docker restart turtlebot3_container` only works after the container has already been created.
-
-If Gazebo GUI fails, restart VNC and open `127.0.0.1:5901` again.
-
-## Verification Already Run
-
-The repo was checked with:
+If Gazebo is slow or gets killed, close other heavy apps and run:
 
 ```bash
-python3 -m compileall
-colcon build --packages-select my_tb3_world tb3_pesticide_dt --symlink-install
-colcon test --packages-select tb3_pesticide_dt
-ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=false
+docker compose down
+docker compose up -d
 ```
 
-At the time of this update, Docker build passed, package tests passed, and a full headless end-to-end run completed all 6 plant inspections and returned to `plant_home` with `RETURNED_HOME`.
+If Docker says the container does not exist, recreate it:
+
+```bash
+docker compose up -d
+```
+
+If Windows has mount/path problems, clone the repo inside WSL and run the Docker commands from the WSL terminal.
+
+**Close the demo with `Ctrl-C` in its terminal, not the window's X button.** Closing the
+Gazebo window only kills the GUI client; the Gazebo *server* keeps running, and the next
+launch shows an empty or stale arena. Run one launch at a time.
+
+If the arena does not show, Gazebo opened and closed, or the container stopped, reset:
+
+```bash
+docker restart turtlebot3_container
+```
+
+This kills all stray Gazebo/ROS processes but keeps the built workspace; then start one
+fresh launch. On Windows/WSL2 also confirm you are launching with `export DISPLAY=:0` and
+that `docker-compose.override.yml` is present — without it the container runs the VNC
+server, which conflicts with the WSLg socket and exits.
+
+## Verification
+
+Useful checks:
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env python3 -m compileall -q /ws/src/cbl_option_b/tb3_pesticide_dt/tb3_pesticide_dt'
+```
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env colcon test --packages-select tb3_pesticide_dt'
+```
+
+Headless launch check:
+
+```bash
+docker exec -it turtlebot3_container bash -lc \
+'cd /ws && ros-env ros2 launch tb3_pesticide_dt option_b_full_demo.launch.py gui:=false'
+```

@@ -1,0 +1,13 @@
+# Local-only override: show Gazebo/RViz GUI directly on Windows via WSLg (no VNC).
+# Mirrors the working Team46 recipe: DISPLAY=:0 + bind the WSLg X11 socket.
+# Auto-merged by `docker compose` on top of docker-compose.yml.
+services:
+  smartle:
+    # Drop start-vnc: we render via WSLg (display :0), not VNC. The baked command
+    # ran a TigerVNC X server on :1 as the main process; when it crashed (it shares
+    # /tmp/.X11-unix with WSLg) it took the whole container down. Idle instead.
+    command: bash -lc "tail -f /dev/null"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /mnt/wslg:/mnt/wslg
+    # NOTE: DISPLAY=:0 is set per-launch (export DISPLAY=:0), not here.
